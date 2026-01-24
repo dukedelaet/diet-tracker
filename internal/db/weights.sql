@@ -12,6 +12,11 @@ SELECT * FROM weights
 ORDER BY date DESC
 LIMIT ?;
 
+-- name: UpdateWeight :exec
+UPDATE weights
+SET pounds = ?
+WHERE date = ?;
+
 -- name: DeleteWeight :exec
 DELETE FROM weights
 WHERE id = ?;

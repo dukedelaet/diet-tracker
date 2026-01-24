@@ -16,8 +16,8 @@ RETURNING id, date, pounds, created_at
 `
 
 type CreateWeightParams struct {
-	Date   string  `json:"date"`
-	Pounds float64 `json:"pounds"`
+	Date   string `json:"date"`
+	Pounds int64  `json:"pounds"`
 }
 
 func (q *Queries) CreateWeight(ctx context.Context, arg CreateWeightParams) (Weight, error) {
@@ -91,4 +91,20 @@ func (q *Queries) ListWeights(ctx context.Context, limit int64) ([]Weight, error
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateWeight = `-- name: UpdateWeight :exec
+UPDATE weights
+SET pounds = ?
+WHERE date = ?
+`
+
+type UpdateWeightParams struct {
+	Pounds int64  `json:"pounds"`
+	Date   string `json:"date"`
+}
+
+func (q *Queries) UpdateWeight(ctx context.Context, arg UpdateWeightParams) error {
+	_, err := q.db.ExecContext(ctx, updateWeight, arg.Pounds, arg.Date)
+	return err
 }
