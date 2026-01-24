@@ -23,10 +23,16 @@ func main() {
 	w := os.Stdout
 	q := db.New(sqlDB)
 
+	// Weight commands
+	listWeight := NewListWeight(w, q)
+	listWeightClic := clic.NewFromFunc(listWeight.ListWeights(), "list")
+	listWeightClic.Flag(&listWeight.limit, "l|limit", "Number of weight entries to show")
+
 	weight := NewWeight(w, q)
-	weightClic := clic.New(weight, "weight")
+	weightClic := clic.New(weight, "weight", listWeightClic)
 	weightClic.Operand(&weight.pounds, false, "Log Weight", "Enter your weight in pounds for today")
 
+	// Meal commands
 	createMeal := NewCreateMeal(w, q)
 	createMealClic := clic.New(createMeal, "create")
 	createMealClic.Flag(&createMeal.name, "n|name", "Name of the meal")
@@ -42,15 +48,32 @@ func main() {
 	logMealClic := clic.NewFromFunc(logMeal.LogMeal(), "log")
 	logMealClic.Operand(&logMeal.name, true, "Meal Name", "The meal must have already been created in order to log")
 
+	todayMeal := NewTodayMeal(w, q)
+	todayMealClic := clic.NewFromFunc(todayMeal.TodayMeals(), "today")
+
 	meal := NewMeal(w, q)
-	mealClic := clic.New(meal, "meal", createMealClic, listMealClic, logMealClic)
+	mealClic := clic.New(meal, "meal", createMealClic, listMealClic, logMealClic, todayMealClic)
+
+	// Exercise commands
+	createExercise := NewCreateExercise(w, q)
+	createExerciseClic := clic.New(createExercise, "create")
+	createExerciseClic.Flag(&createExercise.exerciseType, "t|type", "Exercise type (cardio or strength)")
+	createExerciseClic.Flag(&createExercise.duration, "d|duration", "Duration in minutes")
+
+	listExercise := NewListExercise(w, q)
+	listExerciseClic := clic.NewFromFunc(listExercise.ListExercises(), "list")
+	listExerciseClic.Flag(&listExercise.limit, "l|limit", "Number of exercises to show")
+
+	exercise := NewExercise(w)
+	exerciseClic := clic.New(exercise, "exercise", createExerciseClic, listExerciseClic)
 
 	dietHandler := NewDietRoot(w)
-	root := clic.New(dietHandler, "diet", weightClic, mealClic)
+	root := clic.New(dietHandler, "diet", weightClic, mealClic, exerciseClic)
 
 	cmd, err := root.Parse(os.Args[1:])
 	if err != nil {
 		log.Fatalln(err)
+		fmt.Fprint(w, root.Usage())
 	}
 
 	if err := cmd.Handle(context.Background()); err != nil {
@@ -86,3 +109,31 @@ func dbConn(dsn string) (*sql.DB, error) {
 
 	return db, nil
 }
+
+// func dbDSN() string {
+// 	// 1) Explicit override
+// 	if p := strings.TrimSpace(os.Getenv("DIET_DB_PATH")); p != "" {
+// 		_ = os.MkdirAll(filepath.Dir(p), 0o755)
+// 		return "file:" + p
+// 	}
+//
+// 	// 2) XDG base dir
+// 	if xdg := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); xdg != "" {
+// 		p := filepath.Join(xdg, "diet-tracker", "app.db")
+// 		_ = os.MkdirAll(filepath.Dir(p), 0o755)
+// 		return "file:" + p
+// 	}
+//
+// 	home, _ := os.UserHomeDir()
+//
+// 	// 3) OS default
+// 	var p string
+// 	if runtime.GOOS == "darwin" {
+// 		p = filepath.Join(home, "Library", "Application Support", "diet-tracker", "app.db")
+// 	} else {
+// 		p = filepath.Join(home, ".local", "share", "diet-tracker", "app.db")
+// 	}
+//
+// 	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+// 	return "file:" + p
+// }

@@ -52,15 +52,19 @@ type LogMeal struct {
 func (lm *LogMeal) LogMeal() clic.HandlerFunc {
 	return func(ctx context.Context) error {
 		if lm.name == "" {
-			return fmt.Errorf("must provide a meal name\n")
+			return fmt.Errorf("must provide a meal name")
 		}
 
 		curDate := time.Now().In(time.Local).Format(time.DateOnly)
-		lm.db.LogMealByName(ctx, db.LogMealByNameParams{
+		mealLog, err := lm.db.LogMealByName(ctx, db.LogMealByNameParams{
 			Date: curDate,
 			Name: lm.name,
 		})
+		if err != nil {
+			return fmt.Errorf("failed to log meal %q: %w", lm.name, err)
+		}
 
+		fmt.Fprintf(lm.out, "logged meal %q for %s (log id: %d)\n", lm.name, mealLog.Date, mealLog.ID)
 		return nil
 	}
 }
@@ -164,6 +168,47 @@ func (cm *CreateMeal) HandleCommand(ctx context.Context) error {
 	fmt.Fprintf(cm.out, "%s\n", jsonFmt)
 
 	return nil
+}
+
+type TodayMeal struct {
+	out io.Writer
+	db  *db.Queries
+}
+
+func NewTodayMeal(out io.Writer, db *db.Queries) *TodayMeal {
+	return &TodayMeal{
+		out: out,
+		db:  db,
+	}
+}
+
+func (tm *TodayMeal) TodayMeals() clic.HandlerFunc {
+	return func(ctx context.Context) error {
+		curDate := time.Now().In(time.Local).Format(time.DateOnly)
+
+		logs, err := tm.db.ListMealLogsByDate(ctx, curDate)
+		if err != nil {
+			return err
+		}
+
+		if len(logs) == 0 {
+			fmt.Fprintf(tm.out, "no meals logged for %s\n", curDate)
+			return nil
+		}
+
+		fmt.Fprintf(tm.out, "Meals for %s:\n", curDate)
+		for _, log := range logs {
+			fmt.Fprintf(tm.out, "  %s - P: %d, C: %d, F: %d, Cals: %d\n", log.Name, log.Protein, log.Carbs, log.Fat, log.Calories)
+		}
+
+		totals, err := tm.db.GetDailyTotals(ctx, curDate)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(tm.out, "--\nTotals: Protein: %v, Carbs: %v, Fat: %v, Cals: %v\n", totals.TotalProtein, totals.TotalCarbs, totals.TotalFat, totals.TotalCalories)
+		return nil
+	}
 }
 
 func NewMeal(out io.Writer, db *db.Queries) *Meal {

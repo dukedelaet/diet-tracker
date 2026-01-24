@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/daved/clic"
 	"github.com/guitarkeegan/diet-tracker/internal/db"
 )
 
@@ -21,6 +22,39 @@ var (
 	alreadyLoggedWeightErr = errors.New("weight has already been logged today")
 	notFoundErr            = errors.New("not found")
 )
+
+type ListWeight struct {
+	out   io.Writer
+	db    *db.Queries
+	limit int64
+}
+
+func NewListWeight(out io.Writer, db *db.Queries) *ListWeight {
+	return &ListWeight{
+		out:   out,
+		db:    db,
+		limit: 7,
+	}
+}
+
+func (lw *ListWeight) ListWeights() clic.HandlerFunc {
+	return func(ctx context.Context) error {
+		weights, err := lw.db.ListWeights(ctx, lw.limit)
+		if err != nil {
+			return err
+		}
+
+		if len(weights) == 0 {
+			fmt.Fprintf(lw.out, "no weight entries found\n")
+			return nil
+		}
+
+		for _, w := range weights {
+			fmt.Fprintf(lw.out, "%s: %d lbs\n", w.Date, w.Pounds)
+		}
+		return nil
+	}
+}
 
 func NewWeight(out io.Writer, db *db.Queries) *weight {
 	return &weight{
