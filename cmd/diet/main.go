@@ -6,9 +6,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/daved/clic"
 	"github.com/guitarkeegan/diet-tracker/internal/db"
+	"github.com/guitarkeegan/diet-tracker/migrations"
+	"github.com/pressly/goose/v3"
 
 	_ "modernc.org/sqlite"
 )
@@ -19,6 +24,15 @@ func main() {
 		log.Fatalf("db connection failed: %s", err)
 	}
 	defer sqlDB.Close()
+
+	goose.SetBaseFS(migrations.FS)
+	goose.SetLogger(goose.NopLogger())
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		log.Fatalf("goose dialect: %s", err)
+	}
+	if err := goose.Up(sqlDB, "."); err != nil {
+		log.Fatalf("goose up: %s", err)
+	}
 
 	w := os.Stdout
 	q := db.New(sqlDB)
@@ -84,6 +98,10 @@ func main() {
 }
 
 func dbConn(dsn string) (*sql.DB, error) {
+	dsn, err := dbDSN()
+	if err != nil {
+		return nil, fmt.Errorf("dbConn: %w", err)
+	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -110,30 +128,36 @@ func dbConn(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
-// func dbDSN() string {
-// 	// 1) Explicit override
-// 	if p := strings.TrimSpace(os.Getenv("DIET_DB_PATH")); p != "" {
-// 		_ = os.MkdirAll(filepath.Dir(p), 0o755)
-// 		return "file:" + p
-// 	}
-//
-// 	// 2) XDG base dir
-// 	if xdg := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); xdg != "" {
-// 		p := filepath.Join(xdg, "diet-tracker", "app.db")
-// 		_ = os.MkdirAll(filepath.Dir(p), 0o755)
-// 		return "file:" + p
-// 	}
-//
-// 	home, _ := os.UserHomeDir()
-//
-// 	// 3) OS default
-// 	var p string
-// 	if runtime.GOOS == "darwin" {
-// 		p = filepath.Join(home, "Library", "Application Support", "diet-tracker", "app.db")
-// 	} else {
-// 		p = filepath.Join(home, ".local", "share", "diet-tracker", "app.db")
-// 	}
-//
-// 	_ = os.MkdirAll(filepath.Dir(p), 0o755)
-// 	return "file:" + p
-// }
+func dbDSN() (string, error) {
+	if p := strings.TrimSpace(os.Getenv("DIET_DB_PATH")); p != "" {
+		err := os.MkdirAll(filepath.Dir(p), 0o755)
+		if err != nil {
+			return "", err
+		}
+		return "file:" + p, nil
+	}
+
+	if xdg := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); xdg != "" {
+		p := filepath.Join(xdg, "diet-tracker", "app.db")
+		err := os.MkdirAll(filepath.Dir(p), 0o755)
+		if err != nil {
+			return "", err
+		}
+		return "file:" + p, nil
+	}
+
+	home, _ := os.UserHomeDir()
+
+	var p string
+	if runtime.GOOS == "darwin" {
+		p = filepath.Join(home, "Library", "Application Support", "diet-tracker", "app.db")
+	} else {
+		p = filepath.Join(home, ".local", "share", "diet-tracker", "app.db")
+	}
+
+	err := os.MkdirAll(filepath.Dir(p), 0o755)
+	if err != nil {
+		return "", err
+	}
+	return "file:" + p, nil
+}

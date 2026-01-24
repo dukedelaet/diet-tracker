@@ -1,3 +1,5 @@
+-- +goose Up
+
 -- Daily weight tracking
 CREATE TABLE weights (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,3 +40,9 @@ CREATE TABLE exercises (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_exercises_date ON exercises(date);
+
+-- +goose Down
+DROP TABLE IF EXISTS meal_logs;
+DROP TABLE IF EXISTS exercises;
+DROP TABLE IF EXISTS meals;
+DROP TABLE IF EXISTS weights;
