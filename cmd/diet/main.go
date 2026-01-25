@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -44,7 +45,7 @@ func main() {
 
 	weight := NewWeight(w, q)
 	weightClic := clic.New(weight, "weight", listWeightClic)
-	weightClic.Operand(&weight.pounds, false, "Log Weight", "Enter your weight in pounds for today")
+	weightClic.Operand(&weight.pounds, false, "Current weight: Ex. 200", "Enter your weight in pounds for today")
 
 	// Meal commands
 	createMeal := NewCreateMeal(w, q)
@@ -84,15 +85,20 @@ func main() {
 	dietHandler := NewDietRoot(w)
 	root := clic.New(dietHandler, "diet", weightClic, mealClic, exerciseClic)
 
+	// user error
 	cmd, err := root.Parse(os.Args[1:])
 	if err != nil {
-		log.Fatalln(err)
-		fmt.Fprint(w, root.Usage())
+		fmt.Fprint(w, cmd.Usage())
+		os.Exit(1)
 	}
 
+	// my error or expected error
 	if err := cmd.Handle(context.Background()); err != nil {
-		log.Fatalln(err)
-		fmt.Fprint(w, root.Usage())
+		if errors.Is(err, sql.ErrNoRows) {
+			fmt.Fprintln(w, "No entries in db")
+		} else {
+			log.Fatalln("keegan's bad", err)
+		}
 	}
 
 }
