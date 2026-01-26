@@ -63,3 +63,13 @@ WHERE ml.date = ?;
 -- name: DeleteMealLog :exec
 DELETE FROM meal_logs
 WHERE id = ?;
+
+-- name: ListDailyCaloriesFromDate :many
+SELECT
+  ml.date,
+  COALESCE(SUM(m.calories), 0) as total_calories
+FROM meal_logs ml
+JOIN meals m ON m.id = ml.meal_id
+WHERE ml.date >= ?
+GROUP BY ml.date
+ORDER BY ml.date ASC;

@@ -116,6 +116,45 @@ func (q *Queries) GetMealByName(ctx context.Context, name string) (Meal, error) 
 	return i, err
 }
 
+const listDailyCaloriesFromDate = `-- name: ListDailyCaloriesFromDate :many
+SELECT
+  ml.date,
+  COALESCE(SUM(m.calories), 0) as total_calories
+FROM meal_logs ml
+JOIN meals m ON m.id = ml.meal_id
+WHERE ml.date >= ?
+GROUP BY ml.date
+ORDER BY ml.date ASC
+`
+
+type ListDailyCaloriesFromDateRow struct {
+	Date          string      `json:"date"`
+	TotalCalories interface{} `json:"total_calories"`
+}
+
+func (q *Queries) ListDailyCaloriesFromDate(ctx context.Context, date string) ([]ListDailyCaloriesFromDateRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDailyCaloriesFromDate, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDailyCaloriesFromDateRow
+	for rows.Next() {
+		var i ListDailyCaloriesFromDateRow
+		if err := rows.Scan(&i.Date, &i.TotalCalories); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMealLogsByDate = `-- name: ListMealLogsByDate :many
 SELECT 
   ml.id,

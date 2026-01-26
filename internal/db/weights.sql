@@ -12,6 +12,11 @@ SELECT * FROM weights
 ORDER BY date DESC
 LIMIT ?;
 
+-- name: ListWeightsFromDate :many
+SELECT * FROM weights
+WHERE date >= ?
+ORDER BY date ASC;
+
 -- name: UpdateWeight :exec
 UPDATE weights
 SET pounds = ?

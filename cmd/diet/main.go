@@ -82,8 +82,24 @@ func main() {
 	exercise := NewExercise(w)
 	exerciseClic := clic.New(exercise, "exercise", createExerciseClic, listExerciseClic)
 
+	// Chart commands
+	chartWeight := NewChartWeight(w, q)
+	chartWeightClic := clic.NewFromFunc(chartWeight.ChartWeight(), "weight")
+	chartWeightClic.Flag(&chartWeight.start, "s|start", "Start date (MM-DD-YYYY)")
+
+	chartMeal := NewChartMeal(w, q)
+	chartMealClic := clic.NewFromFunc(chartMeal.ChartMeal(), "meal")
+	chartMealClic.Flag(&chartMeal.start, "s|start", "Start date (MM-DD-YYYY)")
+
+	chartExercise := NewChartExercise(w, q)
+	chartExerciseClic := clic.NewFromFunc(chartExercise.ChartExercise(), "exercise")
+	chartExerciseClic.Flag(&chartExercise.start, "s|start", "Start date (MM-DD-YYYY)")
+
+	chartHandler := NewChart(w)
+	chartClic := clic.New(chartHandler, "chart", chartWeightClic, chartMealClic, chartExerciseClic)
+
 	dietHandler := NewDietRoot(w)
-	root := clic.New(dietHandler, "diet", weightClic, mealClic, exerciseClic)
+	root := clic.New(dietHandler, "diet", weightClic, mealClic, exerciseClic, chartClic)
 
 	// user error
 	cmd, err := root.Parse(os.Args[1:])

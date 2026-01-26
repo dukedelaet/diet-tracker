@@ -93,6 +93,40 @@ func (q *Queries) ListWeights(ctx context.Context, limit int64) ([]Weight, error
 	return items, nil
 }
 
+const listWeightsFromDate = `-- name: ListWeightsFromDate :many
+SELECT id, date, pounds, created_at FROM weights
+WHERE date >= ?
+ORDER BY date ASC
+`
+
+func (q *Queries) ListWeightsFromDate(ctx context.Context, date string) ([]Weight, error) {
+	rows, err := q.db.QueryContext(ctx, listWeightsFromDate, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Weight
+	for rows.Next() {
+		var i Weight
+		if err := rows.Scan(
+			&i.ID,
+			&i.Date,
+			&i.Pounds,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateWeight = `-- name: UpdateWeight :exec
 UPDATE weights
 SET pounds = ?

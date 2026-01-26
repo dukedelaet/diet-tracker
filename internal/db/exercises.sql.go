@@ -113,3 +113,38 @@ func (q *Queries) ListExercisesByDate(ctx context.Context, date string) ([]Exerc
 	}
 	return items, nil
 }
+
+const listExercisesFromDate = `-- name: ListExercisesFromDate :many
+SELECT id, date, exercise_type, duration, created_at FROM exercises
+WHERE date >= ?
+ORDER BY date ASC
+`
+
+func (q *Queries) ListExercisesFromDate(ctx context.Context, date string) ([]Exercise, error) {
+	rows, err := q.db.QueryContext(ctx, listExercisesFromDate, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Exercise
+	for rows.Next() {
+		var i Exercise
+		if err := rows.Scan(
+			&i.ID,
+			&i.Date,
+			&i.ExerciseType,
+			&i.Duration,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
