@@ -61,6 +61,7 @@ func main() {
 
 	logMeal := NewLogMeal(w, q)
 	logMealClic := clic.NewFromFunc(logMeal.LogMeal(), "log")
+	logMealClic.Flag(&logMeal.portion, "p|portion", "The portion of the meal eaten. Ex. 50 for half meal.")
 	logMealClic.Operand(&logMeal.name, true, "Meal Name", "The meal must have already been created in order to log")
 
 	todayMeal := NewTodayMeal(w, q)

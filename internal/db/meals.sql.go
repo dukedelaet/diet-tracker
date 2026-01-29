@@ -13,7 +13,7 @@ const createMeal = `-- name: CreateMeal :one
 
 INSERT INTO meals (name, protein, carbs, fat, calories)
 VALUES (?, ?, ?, ?, ?)
-RETURNING id, name, protein, carbs, fat, calories, created_at
+RETURNING id, name, protein, carbs, fat, calories, created_at, last_logged
 `
 
 type CreateMealParams struct {
@@ -42,6 +42,7 @@ func (q *Queries) CreateMeal(ctx context.Context, arg CreateMealParams) (Meal, e
 		&i.Fat,
 		&i.Calories,
 		&i.CreatedAt,
+		&i.LastLogged,
 	)
 	return i, err
 }
@@ -68,13 +69,12 @@ func (q *Queries) DeleteMealLog(ctx context.Context, id int64) error {
 
 const getDailyTotals = `-- name: GetDailyTotals :one
 SELECT 
-  COALESCE(SUM(m.protein), 0) as total_protein,
-  COALESCE(SUM(m.carbs), 0) as total_carbs,
-  COALESCE(SUM(m.fat), 0) as total_fat,
-  COALESCE(SUM(m.calories), 0) as total_calories
-FROM meal_logs ml
-JOIN meals m ON m.id = ml.meal_id
-WHERE ml.date = ?
+  COALESCE(SUM(protein), 0) as total_protein,
+  COALESCE(SUM(carbs), 0) as total_carbs,
+  COALESCE(SUM(fat), 0) as total_fat,
+  COALESCE(SUM(calories), 0) as total_calories
+FROM meal_logs
+WHERE date = ?
 `
 
 type GetDailyTotalsRow struct {
@@ -97,7 +97,7 @@ func (q *Queries) GetDailyTotals(ctx context.Context, date string) (GetDailyTota
 }
 
 const getMealByName = `-- name: GetMealByName :one
-SELECT id, name, protein, carbs, fat, calories, created_at FROM meals
+SELECT id, name, protein, carbs, fat, calories, created_at, last_logged FROM meals
 WHERE name = ?
 `
 
@@ -112,19 +112,19 @@ func (q *Queries) GetMealByName(ctx context.Context, name string) (Meal, error) 
 		&i.Fat,
 		&i.Calories,
 		&i.CreatedAt,
+		&i.LastLogged,
 	)
 	return i, err
 }
 
 const listDailyCaloriesFromDate = `-- name: ListDailyCaloriesFromDate :many
 SELECT
-  ml.date,
-  COALESCE(SUM(m.calories), 0) as total_calories
-FROM meal_logs ml
-JOIN meals m ON m.id = ml.meal_id
-WHERE ml.date >= ?
-GROUP BY ml.date
-ORDER BY ml.date ASC
+  date,
+  COALESCE(SUM(calories), 0) as total_calories
+FROM meal_logs
+WHERE date >= ?
+GROUP BY date
+ORDER BY date ASC
 `
 
 type ListDailyCaloriesFromDateRow struct {
@@ -160,11 +160,11 @@ SELECT
   ml.id,
   ml.date,
   ml.created_at,
-  m.name,
-  m.protein,
-  m.carbs,
-  m.fat,
-  m.calories
+  ml.protein,
+  ml.carbs,
+  ml.fat,
+  ml.calories,
+  m.name
 FROM meal_logs ml
 JOIN meals m ON m.id = ml.meal_id
 WHERE ml.date = ?
@@ -175,11 +175,11 @@ type ListMealLogsByDateRow struct {
 	ID        int64  `json:"id"`
 	Date      string `json:"date"`
 	CreatedAt string `json:"created_at"`
-	Name      string `json:"name"`
 	Protein   int64  `json:"protein"`
 	Carbs     int64  `json:"carbs"`
 	Fat       int64  `json:"fat"`
 	Calories  int64  `json:"calories"`
+	Name      string `json:"name"`
 }
 
 func (q *Queries) ListMealLogsByDate(ctx context.Context, date string) ([]ListMealLogsByDateRow, error) {
@@ -195,11 +195,11 @@ func (q *Queries) ListMealLogsByDate(ctx context.Context, date string) ([]ListMe
 			&i.ID,
 			&i.Date,
 			&i.CreatedAt,
-			&i.Name,
 			&i.Protein,
 			&i.Carbs,
 			&i.Fat,
 			&i.Calories,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -215,8 +215,8 @@ func (q *Queries) ListMealLogsByDate(ctx context.Context, date string) ([]ListMe
 }
 
 const listMeals = `-- name: ListMeals :many
-SELECT id, name, protein, carbs, fat, calories, created_at FROM meals
-ORDER BY name
+SELECT id, name, protein, carbs, fat, calories, created_at, last_logged FROM meals
+ORDER BY last_logged DESC, created_at DESC, name
 LIMIT ?
 `
 
@@ -237,6 +237,7 @@ func (q *Queries) ListMeals(ctx context.Context, limit int64) ([]Meal, error) {
 			&i.Fat,
 			&i.Calories,
 			&i.CreatedAt,
+			&i.LastLogged,
 		); err != nil {
 			return nil, err
 		}
@@ -253,48 +254,70 @@ func (q *Queries) ListMeals(ctx context.Context, limit int64) ([]Meal, error) {
 
 const logMeal = `-- name: LogMeal :one
 
-INSERT INTO meal_logs (meal_id, date)
-VALUES (?, ?)
-RETURNING id, meal_id, date, created_at
+INSERT INTO meal_logs (meal_id, protein, carbs, fat, calories, date)
+SELECT id, protein, carbs, fat, calories, ? 
+FROM meals 
+WHERE name = ?
+RETURNING id, meal_id, date, created_at, protein, carbs, fat, calories
 `
 
 type LogMealParams struct {
-	MealID int64  `json:"meal_id"`
-	Date   string `json:"date"`
-}
-
-// Meal Logs (daily tracking)
-func (q *Queries) LogMeal(ctx context.Context, arg LogMealParams) (MealLog, error) {
-	row := q.db.QueryRowContext(ctx, logMeal, arg.MealID, arg.Date)
-	var i MealLog
-	err := row.Scan(
-		&i.ID,
-		&i.MealID,
-		&i.Date,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const logMealByName = `-- name: LogMealByName :one
-INSERT INTO meal_logs (meal_id, date)
-SELECT id, ? FROM meals WHERE name = ?
-RETURNING id, meal_id, date, created_at
-`
-
-type LogMealByNameParams struct {
 	Date string `json:"date"`
 	Name string `json:"name"`
 }
 
-func (q *Queries) LogMealByName(ctx context.Context, arg LogMealByNameParams) (MealLog, error) {
-	row := q.db.QueryRowContext(ctx, logMealByName, arg.Date, arg.Name)
+// Meal Logs (daily tracking)
+// Log meal with saved portions (copies from meals table)
+func (q *Queries) LogMeal(ctx context.Context, arg LogMealParams) (MealLog, error) {
+	row := q.db.QueryRowContext(ctx, logMeal, arg.Date, arg.Name)
 	var i MealLog
 	err := row.Scan(
 		&i.ID,
 		&i.MealID,
 		&i.Date,
 		&i.CreatedAt,
+		&i.Protein,
+		&i.Carbs,
+		&i.Fat,
+		&i.Calories,
+	)
+	return i, err
+}
+
+const logMealWithPortions = `-- name: LogMealWithPortions :one
+INSERT INTO meal_logs (meal_id, protein, carbs, fat, calories, date)
+VALUES (?, ?, ?, ?, ?, ?)
+RETURNING id, meal_id, date, created_at, protein, carbs, fat, calories
+`
+
+type LogMealWithPortionsParams struct {
+	MealID   int64  `json:"meal_id"`
+	Protein  int64  `json:"protein"`
+	Carbs    int64  `json:"carbs"`
+	Fat      int64  `json:"fat"`
+	Calories int64  `json:"calories"`
+	Date     string `json:"date"`
+}
+
+func (q *Queries) LogMealWithPortions(ctx context.Context, arg LogMealWithPortionsParams) (MealLog, error) {
+	row := q.db.QueryRowContext(ctx, logMealWithPortions,
+		arg.MealID,
+		arg.Protein,
+		arg.Carbs,
+		arg.Fat,
+		arg.Calories,
+		arg.Date,
+	)
+	var i MealLog
+	err := row.Scan(
+		&i.ID,
+		&i.MealID,
+		&i.Date,
+		&i.CreatedAt,
+		&i.Protein,
+		&i.Carbs,
+		&i.Fat,
+		&i.Calories,
 	)
 	return i, err
 }
@@ -321,5 +344,21 @@ func (q *Queries) UpdateMeal(ctx context.Context, arg UpdateMealParams) error {
 		arg.Calories,
 		arg.Name,
 	)
+	return err
+}
+
+const updateMealLastLogged = `-- name: UpdateMealLastLogged :exec
+UPDATE meals
+SET last_logged = ?
+WHERE name = ?
+`
+
+type UpdateMealLastLoggedParams struct {
+	LastLogged string `json:"last_logged"`
+	Name       string `json:"name"`
+}
+
+func (q *Queries) UpdateMealLastLogged(ctx context.Context, arg UpdateMealLastLoggedParams) error {
+	_, err := q.db.ExecContext(ctx, updateMealLastLogged, arg.LastLogged, arg.Name)
 	return err
 }

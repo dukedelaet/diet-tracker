@@ -44,9 +44,10 @@ type ListMeal struct {
 }
 
 type LogMeal struct {
-	out  io.Writer
-	db   *db.Queries
-	name string
+	out     io.Writer
+	db      *db.Queries
+	name    string
+	portion int64 // a percentage of the meal
 }
 
 func (lm *LogMeal) LogMeal() clic.HandlerFunc {
@@ -56,12 +57,58 @@ func (lm *LogMeal) LogMeal() clic.HandlerFunc {
 		}
 
 		curDate := time.Now().In(time.Local).Format(time.DateOnly)
-		mealLog, err := lm.db.LogMealByName(ctx, db.LogMealByNameParams{
+
+		if lm.portion > 0 {
+			percent := float64(lm.portion) / 100.0
+			mealToLog, err := lm.db.GetMealByName(ctx, lm.name)
+			if err != nil {
+				return fmt.Errorf("could not find meal name: %s, error: %w", lm.name, err)
+			}
+
+			protein := int64(float64(mealToLog.Protein) * percent)
+			carbs := int64(float64(mealToLog.Carbs) * percent)
+			fat := int64(float64(mealToLog.Fat) * percent)
+
+			mealLog, err := lm.db.LogMealWithPortions(ctx, db.LogMealWithPortionsParams{
+				MealID:   mealToLog.ID,
+				Protein:  protein,
+				Carbs:    carbs,
+				Fat:      fat,
+				Calories: CalculateCals(protein, carbs, fat),
+				Date:     curDate,
+			})
+			if err != nil {
+				return fmt.Errorf("logMealWithPortions: Meal: %s, error: %w", lm.name, err)
+			}
+
+			// Update last_logged
+			err = lm.db.UpdateMealLastLogged(ctx, db.UpdateMealLastLoggedParams{
+				LastLogged: curDate,
+				Name:       lm.name,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to update meal last_logged: %q, %w", lm.name, err)
+			}
+
+			fmt.Fprintf(lm.out, "logged meal %q for %s at %d%% portion (log id: %d)\n",
+				lm.name, mealLog.Date, lm.portion, mealLog.ID)
+			return nil
+		}
+
+		mealLog, err := lm.db.LogMeal(ctx, db.LogMealParams{
 			Date: curDate,
 			Name: lm.name,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to log meal %q: %w", lm.name, err)
+		}
+
+		err = lm.db.UpdateMealLastLogged(ctx, db.UpdateMealLastLoggedParams{
+			LastLogged: curDate,
+			Name:       lm.name,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to update meal last_logged: %q, %w", lm.name, err)
 		}
 
 		fmt.Fprintf(lm.out, "logged meal %q for %s (log id: %d)\n", lm.name, mealLog.Date, mealLog.ID)
@@ -108,8 +155,9 @@ func NewCreateMeal(out io.Writer, db *db.Queries) *CreateMeal {
 	}
 }
 
-func (cm *CreateMeal) CalculateCals() int64 {
-	return cm.macros.Carbs*4 + cm.macros.Protein*4 + cm.macros.Fat*9
+// Helper to return the approximate cals based on the macros
+func CalculateCals(p, c, f int64) int64 {
+	return c*4 + p*4 + f*9
 }
 
 func (cm *CreateMeal) hasMacros(p, c, f int64) bool {
@@ -154,7 +202,7 @@ func (cm *CreateMeal) HandleCommand(ctx context.Context) error {
 		Protein:  cm.macros.Protein,
 		Carbs:    cm.macros.Carbs,
 		Fat:      cm.macros.Fat,
-		Calories: cm.CalculateCals(),
+		Calories: CalculateCals(cm.macros.Protein, cm.macros.Carbs, cm.macros.Fat),
 	})
 	if err != nil {
 		return err

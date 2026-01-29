@@ -13,13 +13,14 @@ type Exercise struct {
 }
 
 type Meal struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	Protein   int64  `json:"protein"`
-	Carbs     int64  `json:"carbs"`
-	Fat       int64  `json:"fat"`
-	Calories  int64  `json:"calories"`
-	CreatedAt string `json:"created_at"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Protein    int64  `json:"protein"`
+	Carbs      int64  `json:"carbs"`
+	Fat        int64  `json:"fat"`
+	Calories   int64  `json:"calories"`
+	CreatedAt  string `json:"created_at"`
+	LastLogged string `json:"last_logged"`
 }
 
 type MealLog struct {
@@ -27,6 +28,10 @@ type MealLog struct {
 	MealID    int64  `json:"meal_id"`
 	Date      string `json:"date"`
 	CreatedAt string `json:"created_at"`
+	Protein   int64  `json:"protein"`
+	Carbs     int64  `json:"carbs"`
+	Fat       int64  `json:"fat"`
+	Calories  int64  `json:"calories"`
 }
 
 type Weight struct {

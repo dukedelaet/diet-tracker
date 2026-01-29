@@ -11,12 +11,17 @@ WHERE name = ?;
 
 -- name: ListMeals :many
 SELECT * FROM meals
-ORDER BY name
+ORDER BY last_logged DESC, created_at DESC, name
 LIMIT ?;
 
 -- name: UpdateMeal :exec
 UPDATE meals
 SET protein = ?, carbs = ?, fat = ?, calories = ?
+WHERE name = ?;
+
+-- name: UpdateMealLastLogged :exec
+UPDATE meals
+SET last_logged = ?
 WHERE name = ?;
 
 -- name: DeleteMeal :exec
@@ -25,14 +30,17 @@ WHERE id = ?;
 
 -- Meal Logs (daily tracking)
 
+-- Log meal with saved portions (copies from meals table)
 -- name: LogMeal :one
-INSERT INTO meal_logs (meal_id, date)
-VALUES (?, ?)
+INSERT INTO meal_logs (meal_id, protein, carbs, fat, calories, date)
+SELECT id, protein, carbs, fat, calories, ? 
+FROM meals 
+WHERE name = ?
 RETURNING *;
 
--- name: LogMealByName :one
-INSERT INTO meal_logs (meal_id, date)
-SELECT id, ? FROM meals WHERE name = ?
+-- name: LogMealWithPortions :one
+INSERT INTO meal_logs (meal_id, protein, carbs, fat, calories, date)
+VALUES (?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: ListMealLogsByDate :many
@@ -40,11 +48,11 @@ SELECT
   ml.id,
   ml.date,
   ml.created_at,
-  m.name,
-  m.protein,
-  m.carbs,
-  m.fat,
-  m.calories
+  ml.protein,
+  ml.carbs,
+  ml.fat,
+  ml.calories,
+  m.name
 FROM meal_logs ml
 JOIN meals m ON m.id = ml.meal_id
 WHERE ml.date = ?
@@ -52,13 +60,12 @@ ORDER BY ml.created_at;
 
 -- name: GetDailyTotals :one
 SELECT 
-  COALESCE(SUM(m.protein), 0) as total_protein,
-  COALESCE(SUM(m.carbs), 0) as total_carbs,
-  COALESCE(SUM(m.fat), 0) as total_fat,
-  COALESCE(SUM(m.calories), 0) as total_calories
-FROM meal_logs ml
-JOIN meals m ON m.id = ml.meal_id
-WHERE ml.date = ?;
+  COALESCE(SUM(protein), 0) as total_protein,
+  COALESCE(SUM(carbs), 0) as total_carbs,
+  COALESCE(SUM(fat), 0) as total_fat,
+  COALESCE(SUM(calories), 0) as total_calories
+FROM meal_logs
+WHERE date = ?;
 
 -- name: DeleteMealLog :exec
 DELETE FROM meal_logs
@@ -66,10 +73,9 @@ WHERE id = ?;
 
 -- name: ListDailyCaloriesFromDate :many
 SELECT
-  ml.date,
-  COALESCE(SUM(m.calories), 0) as total_calories
-FROM meal_logs ml
-JOIN meals m ON m.id = ml.meal_id
-WHERE ml.date >= ?
-GROUP BY ml.date
-ORDER BY ml.date ASC;
+  date,
+  COALESCE(SUM(calories), 0) as total_calories
+FROM meal_logs
+WHERE date >= ?
+GROUP BY date
+ORDER BY date ASC;
