@@ -594,7 +594,7 @@ func (m *model) deleteRow(r row) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	navWidth := 16
+	navWidth := 20
 	headerHeight := 1
 	helpHeight := 1
 	bodyHeight := m.height - headerHeight - helpHeight
