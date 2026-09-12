@@ -327,7 +327,7 @@ func (m *model) loadRecentWeights() tea.Cmd {
 		m.chart.SetYRange(200, 220)
 		m.chart.DrawXYAxisAndLabel()
 		for _, w := range m.weights {
-			t, _ := time.Parse("2006-01-02", w.text[:10])
+			t, _ := time.ParseInLocation("2006-01-02", w.text[:10], time.UTC)
 			m.chart.Push(timeserieslinechart.TimePoint{Time: t, Value: float64(w.pounds)})
 		}
 		m.chart.DrawAll()
