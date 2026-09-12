@@ -326,8 +326,8 @@ func (m *model) loadRecentWeights() tea.Cmd {
 		chartH := 15
 		m.chart = timeserieslinechart.New(chartW, chartH,
 			timeserieslinechart.WithXLabelFormatter(timeserieslinechart.DateTimeLabelFormatter()),
+			timeserieslinechart.WithYRange(200, 220),
 		)
-		m.chart.SetYRange(200, 220)
 		m.chart.DrawXYAxisAndLabel()
 		for _, w := range m.weights {
 			// Parse date and create UTC time
