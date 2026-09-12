@@ -125,6 +125,10 @@ type row struct {
 func (r row) title() string        { return r.text }
 func (r row) description() string { return "" }
 func (r row) FilterValue() string { return "" }
+func (r row) parseDate() time.Time {
+	t, _ := time.Parse("2006-01-02", r.text[:10])
+	return t
+}
 
 type formKind int
 
@@ -324,11 +328,21 @@ func (m *model) loadRecentWeights() tea.Cmd {
 		// Build chart - use explicit UTC times
 		chartW := 50
 		chartH := 15
-		// Calculate time range from data
+		// Calculate time range from data (weights are newest first, reverse for chart)
 		var minTime, maxTime time.Time
 		if len(m.weights) > 0 {
-			minTime, _ = time.Parse("2006-01-02", m.weights[0].text[:10])
-			maxTime, _ = time.Parse("2006-01-02", m.weights[len(m.weights)-1].text[:10])
+			// Find actual min/max dates
+			minTime = m.weights[0].parseDate()
+			maxTime = minTime
+			for _, w := range m.weights {
+				t := w.parseDate()
+				if t.Before(minTime) {
+					minTime = t
+				}
+				if t.After(maxTime) {
+					maxTime = t
+				}
+			}
 			// Add buffer time on both ends
 			minTime = minTime.AddDate(0, 0, -1)
 			maxTime = maxTime.AddDate(0, 0, 1)
