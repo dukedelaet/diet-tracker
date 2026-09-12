@@ -603,7 +603,7 @@ func (m *model) View() string {
 	header := lipgloss.NewStyle().Width(m.width).Height(headerHeight).Render("")
 
 	var navLines []string
-	navLines = append(navLines, navActive.Render(navLabel(" DIET ", navWidth)))
+	navLines = append(navLines, navActive.Render(navLabel("diet-tracker", navWidth)))
 	for _, s := range []screenKind{screenToday, screenWeight, screenMeals, screenExercise} {
 		label := fmt.Sprintf(" %s %s", s.Icon(), s.String())
 		if s == m.screen {
