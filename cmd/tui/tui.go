@@ -14,8 +14,94 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/dukedelaet/diet-tracker/internal/db"
 )
+
+var (
+	titleStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("99")).
+		Background(lipgloss.Color("237")).
+		PaddingLeft(1).
+		Width(40)
+
+	helpStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		PaddingLeft(1)
+
+	navStyle = lipgloss.NewStyle().
+		Width(18).
+		Padding(0, 1)
+
+	navItemSelected = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("63"))
+
+	navItemUnselected = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241"))
+
+	contentStyle = lipgloss.NewStyle().
+		BorderTop(true).
+		BorderForeground(lipgloss.Color("236"))
+
+	errStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("196")).
+		Padding(0, 1)
+
+	statusStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("51")).
+		Padding(0, 1)
+
+	modalStyle = lipgloss.NewStyle().
+		Background(lipgloss.Color("236")).
+		Border(lipgloss.ThickBorder()).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("99")).
+		Padding(1, 2).
+		Width(42)
+
+	inputStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("230")).
+		PaddingLeft(1)
+)
+
+type screenKind int
+
+const (
+	screenToday screenKind = iota
+	screenWeight
+	screenMeals
+	screenLog
+)
+
+func (s screenKind) String() string {
+	switch s {
+	case screenToday:
+		return "today"
+	case screenWeight:
+		return "weight"
+	case screenMeals:
+		return "meals"
+	case screenLog:
+		return "log"
+	}
+	return ""
+}
+
+func (s screenKind) Icon() string {
+	switch s {
+	case screenToday:
+		return "◉"
+	case screenWeight:
+		return "⚖"
+	case screenMeals:
+		return "🍽"
+	case screenLog:
+		return "▶"
+	}
+	return "·"
+}
 
 type rowKind int
 
@@ -37,26 +123,30 @@ func (r row) title() string        { return r.text }
 func (r row) description() string { return "" }
 func (r row) FilterValue() string { return "" }
 
-type formScreen string
+type formKind int
 
 const (
-	formWeight formScreen = "weight"
-	formMeal   formScreen = "meal"
-	formLog    formScreen = "log"
+	formNone formKind = iota
+	formWeight
+	formMeal
+	formLog
 )
 
 type model struct {
 	width  int
 	height int
 
-	screen     string
+	screen     screenKind
 	list       list.Model
-	status     string
-	err        string
+	selectedRow row
+
+	status string
+	err    string
+	form   formKind
+
 	formActive bool
-	form       []textinput.Model
+	formFields []textinput.Model
 	formIdx    int
-	formScreen formScreen
 
 	out   io.Writer
 	db    *db.Queries
@@ -92,29 +182,24 @@ func NewModel(opts NewModelOpts) *model {
 		ctx:    opts.Ctx,
 	}
 	m.setupList()
-	m.setupForm(formWeight)
-	m.setupForm(formMeal)
-	m.setupForm(formLog)
 	return m
 }
 
-var forms = map[formScreen][]textinput.Model{}
-
 func (m *model) setupList() {
-	m.list = list.New(nil, rowDelegate{}, m.width, m.height)
-	m.list.Title = "Today"
+	delegate := rowDelegate{}
+	m.list = list.New(nil, delegate, m.width-20, m.height-8)
+	m.list.SetShowHelp(false)
+	m.list.SetShowStatusBar(false)
+	m.list.Title = ""
 }
 
-func (m *model) setupForm(s formScreen) {
-	if _, ok := forms[s]; ok {
-		return
-	}
-	switch s {
+func (m *model) newFormFields(kind formKind) []textinput.Model {
+	switch kind {
 	case formWeight:
 		lbs := textinput.New()
 		lbs.Prompt = "lbs: "
 		lbs.CharLimit = 5
-		forms[s] = []textinput.Model{lbs}
+		return []textinput.Model{lbs}
 	case formMeal:
 		name := textinput.New()
 		name.Prompt = "name: "
@@ -127,7 +212,7 @@ func (m *model) setupForm(s formScreen) {
 		f := textinput.New()
 		f.Prompt = "f: "
 		f.CharLimit = 4
-		forms[s] = []textinput.Model{name, p, c, f}
+		return []textinput.Model{name, p, c, f}
 	case formLog:
 		t := textinput.New()
 		t.Prompt = "type: "
@@ -136,8 +221,31 @@ func (m *model) setupForm(s formScreen) {
 		d.Prompt = "min: "
 		d.CharLimit = 4
 		d.SetValue("30")
-		forms[s] = []textinput.Model{t, d}
+		return []textinput.Model{t, d}
 	}
+	return nil
+}
+
+func (m *model) startForm(kind formKind) {
+	m.form = kind
+	m.formActive = true
+	m.formFields = m.newFormFields(kind)
+	m.formIdx = 0
+	m.err = ""
+}
+
+func (m *model) cancelForm() {
+	m.formActive = false
+	m.form = formNone
+	m.formFields = nil
+	m.formIdx = 0
+	m.err = ""
+}
+
+func (m *model) switchScreen(s screenKind) {
+	m.screen = s
+	m.cancelForm()
+	m.status = ""
 }
 
 func (m *model) Init() tea.Cmd {
@@ -146,13 +254,13 @@ func (m *model) Init() tea.Cmd {
 
 func (m *model) refreshList() tea.Cmd {
 	switch m.screen {
-	case "today":
+	case screenToday:
 		return m.loadToday()
-	case "weight":
+	case screenWeight:
 		return m.loadRecentWeights()
-	case "meals":
+	case screenMeals:
 		return m.loadMeals()
-	case "log":
+	case screenLog:
 		return m.loadLog()
 	}
 	return nil
@@ -165,7 +273,7 @@ func (m *model) loadToday() tea.Cmd {
 		w, err := q.GetWeightByDate(ctx, d)
 		switch {
 		case err == nil:
-			items = append(items, row{kind: kindWeight, id: w.ID, text: fmt.Sprintf("Weight %d lbs", w.Pounds)})
+			items = append(items, row{kind: kindWeight, id: w.ID, text: fmt.Sprintf("Weight  %d lbs", w.Pounds)})
 		case !errors.Is(err, sql.ErrNoRows):
 			return errMsg{err}
 		}
@@ -184,7 +292,7 @@ func (m *model) loadToday() tea.Cmd {
 		}
 		for _, e := range exs {
 			items = append(items, row{kind: kindExercise, id: e.ID,
-				text: fmt.Sprintf("%s %d min", e.ExerciseType, e.Duration)})
+				text: fmt.Sprintf("%s  %d min", e.ExerciseType, e.Duration)})
 		}
 		tot, err := q.GetDailyTotals(ctx, d)
 		if err != nil {
@@ -193,7 +301,7 @@ func (m *model) loadToday() tea.Cmd {
 		items = append(items, row{kind: kindTotal,
 			text: fmt.Sprintf("Totals  %dP %dC %dF  %dcals", float64AsInt(tot.TotalProtein), float64AsInt(tot.TotalCarbs), float64AsInt(tot.TotalFat), float64AsInt(tot.TotalCalories))})
 
-		m.list.Title = "Today " + d
+		m.list.SetTitle("Today " + d)
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -210,7 +318,7 @@ func (m *model) loadRecentWeights() tea.Cmd {
 		for _, w := range weights {
 			items = append(items, row{kind: kindWeight, id: w.ID, text: fmt.Sprintf("%s  %d lbs", w.Date, w.Pounds)})
 		}
-		m.list.Title = "Recent weights"
+		m.list.SetTitle("Recent weights")
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -230,7 +338,7 @@ func (m *model) loadMeals() tea.Cmd {
 			items = append(items, row{kind: kindMealLog, id: l.ID, meal: &l,
 				text: fmt.Sprintf("%-24s  %dP %dC %dF  %dcals", l.Name, l.Protein, l.Carbs, l.Fat, l.Calories)})
 		}
-		m.list.Title = "Meals logged today"
+		m.list.SetTitle("Meals logged today")
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -246,9 +354,9 @@ func (m *model) loadLog() tea.Cmd {
 		var items []list.Item
 		for _, e := range exs {
 			items = append(items, row{kind: kindExercise, id: e.ID,
-				text: fmt.Sprintf("%s %d min", e.ExerciseType, e.Duration)})
+				text: fmt.Sprintf("%s  %d min", e.ExerciseType, e.Duration)})
 		}
-		m.list.Title = "Exercises today"
+		m.list.SetTitle("Exercises today")
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -263,81 +371,70 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.formActive {
 			return m.handleFormKey(msg)
 		}
-		return m.handleListKey(msg)
+		return m.handleNavKey(msg)
 	}
 	l, cmd := m.list.Update(msg)
 	m.list = l
 	return m, cmd
 }
 
-func (m *model) handleListKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *model) handleNavKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case key.Matches(k, newKey):
-		return m.beginForm()
-	case key.Matches(k, delKey):
+	case k.Type == tea.KeyCtrlC:
+		return m, tea.Quit
+	case k.String() == "q":
+		return m, tea.Quit
+	case k.String() == "1":
+		m.switchScreen(screenToday)
+		return m, m.refreshList()
+	case k.String() == "2":
+		m.switchScreen(screenWeight)
+		return m, m.refreshList()
+	case k.String() == "3":
+		m.switchScreen(screenMeals)
+		return m, m.refreshList()
+	case k.String() == "4":
+		m.switchScreen(screenLog)
+		return m, m.refreshList()
+	case k.String() == "n":
+		switch m.screen {
+		case screenWeight:
+			m.startForm(formWeight)
+		case screenMeals:
+			m.startForm(formMeal)
+		case screenLog:
+			m.startForm(formLog)
+		}
+		return m, nil
+	case k.String() == "x":
 		if cur, ok := m.list.SelectedItem().(row); ok {
 			return m.deleteRow(cur)
 		}
-		if cur, ok := m.list.SelectedItem().(row); ok && cur.meal != nil {
-			// Just show a status; actual DB write would need a separate action.
-			// For now this is a placeholder for the half-portion feature.
-			_ = cur
-		}
-	case key.Matches(k, todayKey):
-		m.screen = "today"
-		return m, m.refreshList()
-	case key.Matches(k, weightKey):
-		m.screen = "weight"
-		return m, m.refreshList()
-	case key.Matches(k, mealsKey):
-		m.screen = "meals"
-		return m, m.refreshList()
-	case key.Matches(k, logKey):
-		m.screen = "log"
-		return m, m.refreshList()
-	case key.Matches(k, quitKey):
-		return m, tea.Quit
 	}
 	l, cmd := m.list.Update(k)
 	m.list = l
 	return m, cmd
 }
 
-func (m *model) beginForm() (tea.Model, tea.Cmd) {
-	switch m.screen {
-	case "weight":
-		m.formScreen = formWeight
-	case "meals":
-		m.formScreen = formMeal
-	case "log":
-		m.formScreen = formLog
-	}
-	m.form = forms[m.formScreen]
-	m.formActive = true
-	m.formIdx = 0
-	m.err = ""
-	return m, m.form[0].Focus()
-}
-
 func (m *model) handleFormKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case k.Type == tea.KeyCtrlC:
-		return m, tea.Quit
-	case k.Type == tea.KeyEsc:
-		m.formActive = false
-		m.formIdx = 0
+		m.cancelForm()
 		return m, m.refreshList()
-	case k.Type == tea.KeyEnter && m.formIdx == len(m.form)-1:
+	case k.Type == tea.KeyEsc:
+		m.cancelForm()
+		return m, m.refreshList()
+	case k.Type == tea.KeyEnter && m.formIdx == len(m.formFields)-1:
 		return m.submitForm()
 	case k.Type == tea.KeyTab:
-		m.formIdx = (m.formIdx + 1) % len(m.form)
-		return m, m.form[m.formIdx].Focus()
+		m.formIdx = (m.formIdx + 1) % len(m.formFields)
+		return m, m.formFields[m.formIdx].Focus()
 	case k.Type == tea.KeyShiftTab:
-		m.formIdx = (m.formIdx - 1 + len(m.form)) % len(m.form)
-		return m, m.form[m.formIdx].Focus()
+		m.formIdx = (m.formIdx - 1 + len(m.formFields)) % len(m.formFields)
+		return m, m.formFields[m.formIdx].Focus()
 	}
-	ti, cmd := m.form[m.formIdx].Update(k)
-	m.form[m.formIdx] = ti
+	ti, cmd := m.formFields[m.formIdx].Update(k)
+	m.formFields[m.formIdx] = ti
 	return m, cmd
 }
 
@@ -349,8 +446,8 @@ func intOr(s string, def int) (int, error) {
 }
 
 func (m *model) submitForm() (tea.Model, tea.Cmd) {
-	f := m.form
-	switch m.formScreen {
+	f := m.formFields
+	switch m.form {
 	case formWeight:
 		lbs, err := intOr(f[0].Value(), 0)
 		if err != nil || lbs <= 0 {
@@ -369,8 +466,7 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 			} else {
 				return errMsg{err}
 			}
-			m.form = forms[formWeight]
-			m.formActive = false
+			m.cancelForm()
 			return m.refreshList()
 		}
 	case formMeal:
@@ -397,11 +493,7 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 				return errMsg{err}
 			}
 			m.status = fmt.Sprintf("created meal %s (%d cals)", name, cals)
-			m.form = forms[formMeal]
-			for _, x := range m.form {
-				x.SetValue("")
-			}
-			m.formActive = false
+			m.cancelForm()
 			return m.refreshList()
 		}
 	case formLog:
@@ -418,7 +510,7 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 			m.status = fmt.Sprintf("logged %d min %s", dur, t)
 			f[1].SetValue("30")
 			f[0].SetValue("cardio")
-			m.formActive = false
+			m.cancelForm()
 			return m.refreshList()
 		}
 	}
@@ -449,28 +541,132 @@ func (m *model) deleteRow(r row) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	var sb strings.Builder
-	fmt.Fprint(&sb, "\n  1) today  2) weight  3) meals  4) log\n\n")
-	fmt.Fprint(&sb, m.list.View())
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render(" diet-tracker tui "))
+	b.WriteString("\n\n")
+
+	navWidth := 18
+	contentWidth := m.width - navWidth - 3
+
+	var nav strings.Builder
+	nav.WriteString(navStyle.Render("Navigation"))
+	nav.WriteString("\n")
+	screens := []screenKind{screenToday, screenWeight, screenMeals, screenLog}
+	for _, s := range screens {
+		icon := s.Icon()
+		label := s.String()
+		selected := s == m.screen
+		style := navItemUnselected
+		if selected {
+			style = navItemSelected
+		}
+		nav.WriteString(style.Render(fmt.Sprintf("  %s  %-14s", icon, label)))
+		if selected {
+			nav.WriteString(" ←")
+		}
+		nav.WriteString("\n")
+	}
+	nav.WriteString("\n")
+	nav.WriteString(helpStyle.Render("  [n] new entry"))
+	nav.WriteString("\n")
+	nav.WriteString(helpStyle.Render("  [x] delete"))
+	nav.WriteString("\n")
+	nav.WriteString(helpStyle.Render("  [q] quit"))
+	nav.WriteString("\n")
+
+	var content strings.Builder
+	content.WriteString(contentStyle.Render(strings.Repeat(" ", contentWidth)))
+	content.WriteString("\n")
+
 	if m.formActive {
-		fmt.Fprint(&sb, "\n\n  FORM — tab to move, esc cancel, enter submit\n")
-		for i, f := range m.form {
-			prompt := f.Prompt
-			if i != m.formIdx {
-				prompt = "  "
+		formWidth := 42
+		formHeight := 7
+		modalX := (m.width - formWidth) / 2
+		modalY := (m.height - formHeight) / 2
+
+		for y := 0; y < m.height-1; y++ {
+			if y < modalY {
+				b.WriteString(strings.Repeat(" ", m.width))
+				b.WriteString("\n")
+				continue
 			}
-			fmt.Fprintf(&sb, "  %-8s %s\n", prompt, f.View())
+			if y == modalY {
+				b.WriteString(strings.Repeat(" ", modalX))
+				b.WriteString(modalStyle.BorderTop(true).Render(strings.Repeat(" ", formWidth)))
+				b.WriteString("\n")
+				continue
+			}
+			if y == modalY+formHeight-1 {
+				b.WriteString(strings.Repeat(" ", modalX))
+				b.WriteString(modalStyle.BorderBottom(true).Render(strings.Repeat(" ", formWidth)))
+				b.WriteString("\n")
+				continue
+			}
+			if y > modalY && y < modalY+formHeight-1 {
+				b.WriteString(strings.Repeat(" ", modalX))
+				row := y - modalY
+				switch row {
+				case 0:
+					title := ""
+					switch m.form {
+					case formWeight:
+						title = " Log Weight "
+					case formMeal:
+						title = " Add Meal   "
+					case formLog:
+						title = " Log Exercise"
+					}
+					b.WriteString(modalStyle.Render(title))
+				case 1:
+					b.WriteString(modalStyle.Render(strings.Repeat("-", formWidth-2)))
+				case 2:
+					for i, f := range m.formFields {
+						prompt := f.Prompt
+						if i == m.formIdx {
+							prompt = "> " + prompt
+						}
+						val := f.View()
+						if i == m.formIdx {
+							val = inputStyle.Render(val)
+						}
+						b.WriteString(modalStyle.Render(fmt.Sprintf("  %-8s%s", prompt, val)))
+					}
+				case 3:
+					b.WriteString(modalStyle.Render("  tab: next · esc: cancel"))
+				default:
+					b.WriteString(modalStyle.Render(strings.Repeat(" ", formWidth-2)))
+				}
+				b.WriteString("\n")
+				continue
+			}
+			b.WriteString(strings.Repeat(" ", m.width))
+			b.WriteString("\n")
 		}
 	} else {
-		fmt.Fprint(&sb, "\n  n: new  x: delete  q: quit\n")
+		contentArea := m.list.View()
+		if m.status != "" {
+			contentArea += "\n" + statusStyle.Render(" ✓ " + m.status)
+		}
+		if m.err != "" {
+			contentArea += "\n" + errStyle.Render(" ⚠ " + m.err)
+		}
+		contentArea += "\n\n" + helpStyle.Render(" n: new  x: delete  q: quit")
+		content.WriteString(lipgloss.PlaceHorizontal(contentWidth, lipgloss.Left, contentArea))
 	}
-	if m.err != "" {
-		fmt.Fprintf(&sb, "\n  ⚠  %s\n", m.err)
-	}
-	if m.status != "" {
-		fmt.Fprintf(&sb, "\n  ✓  %s\n", m.status)
-	}
-	return sb.String()
+
+	navPanel := lipgloss.PlaceVertical(m.height-2, lipgloss.Top, nav.String())
+	contentPanel := lipgloss.PlaceVertical(m.height-2, lipgloss.Top, content.String())
+	layout := lipgloss.JoinHorizontal(lipgloss.Top,
+		navPanel,
+		lipgloss.NewStyle().
+			BorderLeft(true).
+			BorderForeground(lipgloss.Color("236")).
+			Render(contentPanel),
+	)
+	b.WriteString(layout)
+
+	return b.String()
 }
 
 func (m *model) Run() {
@@ -479,16 +675,6 @@ func (m *model) Run() {
 		panic(err)
 	}
 }
-
-var (
-	todayKey   = key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "today"))
-	weightKey  = key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "weight"))
-	mealsKey   = key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "meals"))
-	logKey     = key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "today activity"))
-	quitKey    = key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit"))
-	newKey     = key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new entry"))
-	delKey     = key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete row"))
-)
 
 func todayStr() string {
 	return time.Now().In(time.Local).Format(time.DateOnly)
