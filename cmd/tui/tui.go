@@ -20,6 +20,7 @@ import (
 // --- styles ---
 
 var (
+	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	headerStyle = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("99")).
@@ -565,144 +566,108 @@ func (m *model) deleteRow(r row) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	navWidth := 18
+	navWidth := 16
 	headerHeight := 1
 	helpHeight := 1
-	contentHeight := m.height - headerHeight - helpHeight - 2
+	bodyHeight := m.height - headerHeight - helpHeight
+	contentWidth := m.width - navWidth
 
-	// Header
-	headerText := " diet-tracker tui "
-	if m.screen != screenToday {
-		headerText += "  " + navItemSelected.Render(fmt.Sprintf("[1:%s] [2:%s] [3:%s] [4:%s]",
-			screenToday, screenWeight, screenMeals, screenLog))
-	}
+	title := headerStyle.Render(" diet-tracker tui ")
 	header := lipgloss.NewStyle().
 		Width(m.width).
 		Height(headerHeight).
-		Render(headerStyle.Render(headerText))
+		Render(title)
 
-	// Nav panel
-	var navItems strings.Builder
-	navItems.WriteString(navActive.Render(" Navigation "))
-	navItems.WriteString("\n")
-	screens := []screenKind{screenToday, screenWeight, screenMeals, screenLog}
-	for _, s := range screens {
-		icon := s.Icon()
-		label := s.String()
-		selected := s == m.screen
-		item := fmt.Sprintf("  %s  %-14s", icon, label)
-		if selected {
-			navItems.WriteString(navActive.Render(item) + " ")
+	var navLines []string
+	navLines = append(navLines, navActive.Render(navLabel(" DIET ", navWidth)))
+	for _, s := range []screenKind{screenToday, screenWeight, screenMeals, screenLog} {
+		label := fmt.Sprintf(" %s %s", s.Icon(), s.String())
+		if s == m.screen {
+			navLines = append(navLines, navActive.Render(navLabel(label, navWidth)))
 		} else {
-			navItems.WriteString(navItemUnselected.Render(item))
+			navLines = append(navLines, navItemUnselected.Render(navLabel(label, navWidth)))
 		}
-		navItems.WriteString("\n")
 	}
-	navItems.WriteString("\n")
-	navItems.WriteString(helpStyle.Render("  [n] new"))
-	navItems.WriteString("\n")
-	navItems.WriteString(helpStyle.Render("  [x] del"))
-	navItems.WriteString("\n")
-	navItems.WriteString(helpStyle.Render("  [q] quit"))
+	for i := len(navLines); i < bodyHeight; i++ {
+		navLines = append(navLines, strings.Repeat(" ", navWidth))
+	}
+	navPanel := strings.Join(navLines[:bodyHeight], "\n")
 
-	navPanel := lipgloss.NewStyle().
-		Width(navWidth).
-		Height(contentHeight).
-		Render(navItems.String())
-
-	// Content panel
-	contentWidth := m.width - navWidth - 1
-
-	var content strings.Builder
+	var contentView string
 	if m.formActive {
-		// Modal form centered in content area
-		formWidth := 40
-		formHeight := 6
-		modalX := (contentWidth - formWidth) / 2
-		modalY := (contentHeight - formHeight) / 2
-
-		for y := 0; y < contentHeight; y++ {
-			if y < modalY {
-				content.WriteString(strings.Repeat(" ", contentWidth))
-			} else if y == modalY {
-				content.WriteString(strings.Repeat(" ", modalX))
-				content.WriteString(modalStyle.BorderTop(true).Render(strings.Repeat(" ", formWidth)))
-			} else if y == modalY+formHeight-1 {
-				content.WriteString(strings.Repeat(" ", modalX))
-				content.WriteString(modalStyle.BorderBottom(true).Render(strings.Repeat(" ", formWidth)))
-			} else if y > modalY && y < modalY+formHeight-1 {
-				content.WriteString(strings.Repeat(" ", modalX))
-				row := y - modalY
-				switch row {
-				case 0:
-					title := ""
-					switch m.form {
-					case formWeight:
-						title = " Log Weight "
-					case formMeal:
-						title = " Add Meal   "
-					case formLog:
-						title = " Log Exercise"
-					}
-					content.WriteString(modalStyle.Render(title))
-				case 1:
-					content.WriteString(modalStyle.Render(strings.Repeat("-", formWidth-2)))
-				case 2:
-					for i, f := range m.formFields {
-						prompt := f.Prompt
-						if i == m.formIdx {
-							prompt = "> " + prompt
-						}
-						val := f.View()
-						if i == m.formIdx {
-							val = inputStyle.Render(val)
-						}
-						content.WriteString(modalStyle.Render(fmt.Sprintf("  %-10s%s", prompt, val)))
-					}
-				case 3:
-					content.WriteString(modalStyle.Render("  tab: next · esc: cancel"))
-				default:
-					content.WriteString(modalStyle.Render(strings.Repeat(" ", formWidth-2)))
-				}
-			} else {
-				content.WriteString(strings.Repeat(" ", contentWidth))
-			}
-			content.WriteString("\n")
-		}
+		contentView = lipgloss.Place(contentWidth, bodyHeight,
+			lipgloss.Center, lipgloss.Center, m.modalLines())
 	} else {
-		// Normal list view
-		listView := m.list.View()
-		if m.status != "" {
-			listView += "\n" + statusStyle.Render(" ✓ " + m.status)
+		listWidth := contentWidth - 4
+		listHeight := bodyHeight - 2
+		if listHeight < 1 {
+			listHeight = 1
 		}
+		m.list.SetSize(listWidth, listHeight)
+		body := m.list.View()
 		if m.err != "" {
-			listView += "\n" + errStyle.Render(" ⚠ " + m.err)
+			body += "\n" + errStyle.Render(" "+m.err)
 		}
-		content.WriteString(contentBorder.Render(listView))
+		if m.status != "" {
+			body += "\n" + statusStyle.Render(" "+m.status)
+		}
+		contentView = contentBorder.Copy().
+			Width(contentWidth - 2).
+			Height(listHeight + 2).
+			Render(body)
 	}
 
-	contentPanel := lipgloss.NewStyle().
-		Width(contentWidth).
-		Height(contentHeight).
-		Render(content.String())
-
-	// Help bar
+	helpText := " ↑↓ nav   n new   x delete   q quit"
+	if m.formActive {
+		helpText = " tab next   enter submit   esc cancel"
+	}
 	helpBar := lipgloss.NewStyle().
 		Width(m.width).
 		Height(helpHeight).
-		Render(helpStyle.Render(" ↑↓ nav  n: new  x: del  q: quit"))
+		Render(helpStyle.Render(helpText))
 
-	// Assemble layout
 	layout := lipgloss.JoinVertical(lipgloss.Top,
 		header,
-		lipgloss.JoinHorizontal(lipgloss.Top, navPanel, contentPanel),
+		lipgloss.JoinHorizontal(lipgloss.Top, navPanel, contentView),
 		helpBar,
 	)
-
 	return layout
 }
 
+func navLabel(s string, w int) string {
+	if lipgloss.Width(s) >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-lipgloss.Width(s))
+}
 
+func (m *model) modalLines() string {
+	var fields strings.Builder
+	for i, f := range m.formFields {
+		prompt := f.Prompt
+		val := f.View()
+		if i == m.formIdx {
+			fields.WriteString(inputStyle.Render("> "+prompt+val) + "\n")
+		} else {
+			fields.WriteString(dimStyle.Render("  "+prompt+val) + "\n")
+		}
+	}
+	title := ""
+	switch m.form {
+	case formWeight:
+		title = "Log weight (lbs)"
+	case formMeal:
+		title = "New meal"
+	case formLog:
+		title = "Log exercise"
+	}
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		headerStyle.Render(title),
+		strings.TrimRight(fields.String(), "\n"),
+		dimStyle.Render("tab next · enter save · esc cancel"),
+	)
+	return modalStyle.Render(inner)
+}
 func (m *model) Run() {
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil && m.out != nil {
