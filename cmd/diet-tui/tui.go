@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -150,7 +149,6 @@ type model struct {
 	db            *db.Queries
 	ctx           context.Context
 	weights       []row
-	chart         timeserieslinechart.Model
 }
 
 type NewModelOpts struct {
@@ -246,7 +244,6 @@ func (m *model) switchScreen(s screenKind) {
 	m.screen = s
 	m.cancelForm()
 	m.status = ""
-	m.chart = timeserieslinechart.Model{}
 }
 
 func (m *model) Init() tea.Cmd {
@@ -321,16 +318,6 @@ func (m *model) loadRecentWeights() tea.Cmd {
 			items = append(items, r)
 			m.weights = append(m.weights, r)
 		}
-		m.chart = timeserieslinechart.New(50, 12,
-			timeserieslinechart.WithXLabelFormatter(timeserieslinechart.DateTimeLabelFormatter()),
-		)
-		m.chart.SetYRange(200, 220)
-		m.chart.DrawXYAxisAndLabel()
-		for _, w := range m.weights {
-			t, _ := time.ParseInLocation("2006-01-02", w.text[:10], time.UTC)
-			m.chart.Push(timeserieslinechart.TimePoint{Time: t, Value: float64(w.pounds)})
-		}
-		m.chart.DrawAll()
 		m.list.Title = "Recent weights"
 		m.list.SetItems(items)
 		return msg{}
@@ -592,12 +579,8 @@ func (m *model) View() string {
 	if m.formActive {
 		contentView = lipgloss.Place(contentWidth, bodyHeight,
 			lipgloss.Center, lipgloss.Center, m.modalLines())
-	} else if m.screen == screenWeight && len(m.chart.View()) > 0 {
-		body := "◉ Weight History\n" + m.chart.View()
-		if m.err != "" {
-			body += "\n" + errStyle.Render(" "+m.err)
-		}
-		contentView = contentBorder.Copy().Width(contentWidth-2).Height(bodyHeight-2).Render(body)
+	} else if m.screen == screenWeight && len(m.weights) > 0 {
+		contentView = m.renderWeightChart(contentWidth, bodyHeight)
 	} else {
 		listWidth := contentWidth - 4
 		listHeight := bodyHeight - 2
@@ -624,6 +607,65 @@ func (m *model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Top, header,
 		lipgloss.JoinHorizontal(lipgloss.Top, navPanel, contentView),
 		helpBar)
+}
+
+func (m *model) renderWeightChart(width, height int) string {
+	if len(m.weights) < 2 {
+		return "No enough data for chart"
+	}
+	
+	// Find min/max
+	minVal, maxVal := m.weights[0].pounds, m.weights[0].pounds
+	for _, w := range m.weights {
+		if w.pounds < minVal {
+			minVal = w.pounds
+		}
+		if w.pounds > maxVal {
+			maxVal = w.pounds
+		}
+	}
+	if maxVal == minVal {
+		maxVal++
+	}
+	
+	// Chart dimensions (leave room for axes)
+	charWidth := width - 4
+	charHeight := height - 2
+	
+	var lines []string
+	
+	// Top border
+	lines = append(lines, "┌"+strings.Repeat("─", charWidth)+"┐")
+	
+	// Draw chart rows
+	for row := charHeight - 1; row >= 0; row-- {
+		line := "│"
+		// Calculate y value for this row
+		yVal := minVal + float64(row)/float64(charHeight-1)*float64(maxVal-minVal)
+		line += fmt.Sprintf("%4.0f ", yVal)
+		
+		// Plot points
+		for col := 0; col < charWidth-2; col++ {
+			idx := col * (len(m.weights) - 1) / (charWidth - 3)
+			if idx >= len(m.weights) {
+				idx = len(m.weights) - 1
+			}
+			wVal := float64(m.weights[idx].pounds)
+			rowAtVal := int((wVal - minVal) / (maxVal - minVal) * float64(charHeight-1))
+			if rowAtVal == row {
+				line += "█"
+			} else {
+				line += " "
+			}
+		}
+		line += "│"
+		lines = append(lines, line)
+	}
+	
+	// Bottom border
+	lines = append(lines, "└"+strings.Repeat("─", charWidth)+"┘")
+	
+	return strings.Join(lines, "\n")
 }
 
 func navLabel(s string, w int) string {

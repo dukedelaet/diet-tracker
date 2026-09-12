@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/NimbleMarkets/ntcharts v0.5.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
@@ -24,6 +25,7 @@ require (
 	github.com/daved/operandset v0.0.0-20250304051154-76471d13c315 // indirect
 	github.com/daved/vtypes v0.0.0-20250304043744-7dc0b006e1b0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
+	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
