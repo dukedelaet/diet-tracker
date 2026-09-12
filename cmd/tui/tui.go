@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -301,7 +300,7 @@ func (m *model) loadToday() tea.Cmd {
 		items = append(items, row{kind: kindTotal,
 			text: fmt.Sprintf("Totals  %dP %dC %dF  %dcals", float64AsInt(tot.TotalProtein), float64AsInt(tot.TotalCarbs), float64AsInt(tot.TotalFat), float64AsInt(tot.TotalCalories))})
 
-		m.list.SetTitle("Today " + d)
+		m.list.Title =("Today " + d)
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -318,7 +317,7 @@ func (m *model) loadRecentWeights() tea.Cmd {
 		for _, w := range weights {
 			items = append(items, row{kind: kindWeight, id: w.ID, text: fmt.Sprintf("%s  %d lbs", w.Date, w.Pounds)})
 		}
-		m.list.SetTitle("Recent weights")
+		m.list.Title =("Recent weights")
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -338,7 +337,7 @@ func (m *model) loadMeals() tea.Cmd {
 			items = append(items, row{kind: kindMealLog, id: l.ID, meal: &l,
 				text: fmt.Sprintf("%-24s  %dP %dC %dF  %dcals", l.Name, l.Protein, l.Carbs, l.Fat, l.Calories)})
 		}
-		m.list.SetTitle("Meals logged today")
+		m.list.Title =("Meals logged today")
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -356,7 +355,7 @@ func (m *model) loadLog() tea.Cmd {
 			items = append(items, row{kind: kindExercise, id: e.ID,
 				text: fmt.Sprintf("%s  %d min", e.ExerciseType, e.Duration)})
 		}
-		m.list.SetTitle("Exercises today")
+		m.list.Title =("Exercises today")
 		m.list.SetItems(items)
 		return msg{}
 	}
