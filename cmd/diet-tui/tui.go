@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
 	"github.com/dukedelaet/diet-tracker/internal/db"
 )
 
