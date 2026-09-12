@@ -592,7 +592,7 @@ func (m *model) View() string {
 	if m.formActive {
 		contentView = lipgloss.Place(contentWidth, bodyHeight,
 			lipgloss.Center, lipgloss.Center, m.modalLines())
-	} else if m.screen == screenWeight && !m.chart.View().TrimRight() == "" {
+	} else if m.screen == screenWeight && len(m.chart.View()) > 0 {
 		body := "◉ Weight History\n" + m.chart.View()
 		if m.err != "" {
 			body += "\n" + errStyle.Render(" "+m.err)
