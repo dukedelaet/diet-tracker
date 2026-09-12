@@ -1,9 +1,12 @@
 x 2026-09-12 add time series graph to the weight chart
-figure out the meal tracker thing and get ui ux examples
-change log to exercise log
-figure out exercise planning component
-what's going on with calorie tracking from the meals
-what's going on with calorie tracking from the workouts
-can we do a workout database thingie with the cals per min
-can we do a basal metabolic rate from formulae
-add fasting tracking
+figure out the meal tracker thing and get ui ux examples #4
+change log to exercise log #5
+figure out exercise planning component #6
+what's going on with calorie tracking from the meals #7
+what's going on with calorie tracking from the workouts #8
+can we do a workout database thingie with the cals per min #9
+can we do a basal metabolic rate from formulae #10
+add fasting tracking #11
+The title should be in the sidebar #12
+Make the sidebar one column wider to let the title track #13
+Logging Meals doesn't save #14
