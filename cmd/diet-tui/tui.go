@@ -73,7 +73,7 @@ const (
 	screenToday screenKind = iota
 	screenWeight
 	screenMeals
-	screenLog
+	screenExercise
 	numScreens
 )
 
@@ -85,8 +85,8 @@ func (s screenKind) String() string {
 		return "weight"
 	case screenMeals:
 		return "meals"
-	case screenLog:
-		return "log"
+	case screenExercise:
+		return "exercise"
 	}
 	return ""
 }
@@ -99,7 +99,7 @@ func (s screenKind) Icon() string {
 		return "⚖"
 	case screenMeals:
 		return "🍽"
-	case screenLog:
+	case screenExercise:
 		return "▶"
 	}
 	return "·"
@@ -136,7 +136,7 @@ const (
 	formNone formKind = iota
 	formWeight
 	formMeal
-	formLog
+	formExercise
 )
 
 type model struct {
@@ -216,7 +216,7 @@ func (m *model) newFormFields(kind formKind) []textinput.Model {
 		f.Prompt = "f: "
 		f.CharLimit = 4
 		return []textinput.Model{name, p, c, f}
-	case formLog:
+	case formExercise:
 		t := textinput.New()
 		t.Prompt = "type: "
 		t.SetValue("cardio")
@@ -265,7 +265,7 @@ func (m *model) refreshList() tea.Cmd {
 		return m.loadRecentWeights()
 	case screenMeals:
 		return m.loadMeals()
-	case screenLog:
+	case screenExercise:
 		return m.loadLog()
 	}
 	return nil
@@ -443,7 +443,7 @@ func (m *model) handleNavKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.switchScreen(screenMeals)
 		return m, m.refreshList()
 	case k.String() == "4":
-		m.switchScreen(screenLog)
+		m.switchScreen(screenExercise)
 		return m, m.refreshList()
 	case k.String() == "n":
 		switch m.screen {
@@ -451,8 +451,8 @@ func (m *model) handleNavKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.startForm(formWeight)
 		case screenMeals:
 			m.startForm(formMeal)
-		case screenLog:
-			m.startForm(formLog)
+		case screenExercise:
+			m.startForm(formExercise)
 		}
 		return m, nil
 	case k.String() == "x":
@@ -549,7 +549,7 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 			m.cancelForm()
 			return reloadMsg{}
 		}
-	case formLog:
+	case formExercise:
 		t := strings.ToLower(strings.TrimSpace(f[0].Value()))
 		dur, err := intOr(f[1].Value(), 0)
 		if err != nil || (t != "cardio" && t != "strength") || dur <= 0 {
@@ -605,7 +605,7 @@ func (m *model) View() string {
 
 	var navLines []string
 	navLines = append(navLines, navActive.Render(navLabel(" DIET ", navWidth)))
-	for _, s := range []screenKind{screenToday, screenWeight, screenMeals, screenLog} {
+	for _, s := range []screenKind{screenToday, screenWeight, screenMeals, screenExercise} {
 		label := fmt.Sprintf(" %s %s", s.Icon(), s.String())
 		if s == m.screen {
 			navLines = append(navLines, navActive.Render(navLabel(label, navWidth)))
@@ -681,7 +681,7 @@ func (m *model) modalLines() string {
 		title = "Log weight (lbs)"
 	case formMeal:
 		title = "New meal"
-	case formLog:
+	case formExercise:
 		title = "Log exercise"
 	}
 	inner := lipgloss.JoinVertical(lipgloss.Left,
