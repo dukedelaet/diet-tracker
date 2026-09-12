@@ -391,18 +391,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleNavKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Screen navigation with arrow keys
-	switch k.Type {
-	case tea.KeyUp:
-		if m.formActive {
-			break
-		}
+	// Screen navigation with arrow keys or j/k
+	switch {
+	case m.formActive:
+		// nothing special for nav keys in form mode
+	case k.Type == tea.KeyUp || k.String() == "k":
 		m.screen = (m.screen - 1 + numScreens) % numScreens
 		return m, m.refreshList()
-	case tea.KeyDown:
-		if m.formActive {
-			break
-		}
+	case k.Type == tea.KeyDown || k.String() == "j":
 		m.screen = (m.screen + 1) % numScreens
 		return m, m.refreshList()
 	}
@@ -620,7 +616,7 @@ func (m *model) View() string {
 			Render(body)
 	}
 
-	helpText := " ↑↓ nav   n new   x delete   q quit"
+	helpText := " j/k or ↑↓ nav   n new   x delete   q quit"
 	if m.formActive {
 		helpText = " tab next   enter submit   esc cancel"
 	}
