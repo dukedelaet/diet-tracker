@@ -17,53 +17,57 @@ import (
 	"github.com/dukedelaet/diet-tracker/internal/db"
 )
 
+// --- styles ---
+
 var (
-	titleStyle = lipgloss.NewStyle().
+	headerStyle = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("99")).
 		Background(lipgloss.Color("237")).
-		PaddingLeft(1).
-		Width(40)
-
-	helpStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("245")).
-		PaddingLeft(1)
-
-	navStyle = lipgloss.NewStyle().
-		Width(18).
 		Padding(0, 1)
 
 	navItemSelected = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("63"))
+		Foreground(lipgloss.Color("63")).
+		Padding(0, 1)
 
 	navItemUnselected = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241"))
+		Foreground(lipgloss.Color("241")).
+		Padding(0, 1)
 
-	contentStyle = lipgloss.NewStyle().
-		BorderTop(true).
-		BorderForeground(lipgloss.Color("236"))
+	navActive = lipgloss.NewStyle().
+		Background(lipgloss.Color("236")).
+		Foreground(lipgloss.Color("63")).
+		Padding(0, 1)
 
-	errStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("196")).
+	contentBorder = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("236")).
+		Padding(0, 1)
+
+	helpStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
 		Padding(0, 1)
 
 	statusStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("51")).
-		Padding(0, 1)
+		Foreground(lipgloss.Color("51"))
+
+	errStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("196"))
 
 	modalStyle = lipgloss.NewStyle().
 		Background(lipgloss.Color("236")).
 		Border(lipgloss.ThickBorder()).
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("99")).
-		Padding(1, 2).
-		Width(42)
+		Padding(1, 2)
 
 	inputStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("230")).
-		PaddingLeft(1)
+		Foreground(lipgloss.Color("230"))
 )
+
+// --- types ---
 
 type screenKind int
 
@@ -131,6 +135,8 @@ const (
 	formLog
 )
 
+// --- model ---
+
 type model struct {
 	width  int
 	height int
@@ -186,7 +192,7 @@ func NewModel(opts NewModelOpts) *model {
 
 func (m *model) setupList() {
 	delegate := rowDelegate{}
-	m.list = list.New(nil, delegate, m.width-20, m.height-8)
+	m.list = list.New(nil, delegate, m.width-22, m.height-10)
 	m.list.SetShowHelp(false)
 	m.list.SetShowStatusBar(false)
 	m.list.Title = ""
@@ -247,6 +253,8 @@ func (m *model) switchScreen(s screenKind) {
 	m.status = ""
 }
 
+// --- tea.Model interface ---
+
 func (m *model) Init() tea.Cmd {
 	return m.refreshList()
 }
@@ -300,7 +308,7 @@ func (m *model) loadToday() tea.Cmd {
 		items = append(items, row{kind: kindTotal,
 			text: fmt.Sprintf("Totals  %dP %dC %dF  %dcals", float64AsInt(tot.TotalProtein), float64AsInt(tot.TotalCarbs), float64AsInt(tot.TotalFat), float64AsInt(tot.TotalCalories))})
 
-		m.list.Title =("Today " + d)
+		m.list.Title = "Today " + d
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -317,7 +325,7 @@ func (m *model) loadRecentWeights() tea.Cmd {
 		for _, w := range weights {
 			items = append(items, row{kind: kindWeight, id: w.ID, text: fmt.Sprintf("%s  %d lbs", w.Date, w.Pounds)})
 		}
-		m.list.Title =("Recent weights")
+		m.list.Title = "Recent weights"
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -337,7 +345,7 @@ func (m *model) loadMeals() tea.Cmd {
 			items = append(items, row{kind: kindMealLog, id: l.ID, meal: &l,
 				text: fmt.Sprintf("%-24s  %dP %dC %dF  %dcals", l.Name, l.Protein, l.Carbs, l.Fat, l.Calories)})
 		}
-		m.list.Title =("Meals logged today")
+		m.list.Title = "Meals logged today"
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -355,7 +363,7 @@ func (m *model) loadLog() tea.Cmd {
 			items = append(items, row{kind: kindExercise, id: e.ID,
 				text: fmt.Sprintf("%s  %d min", e.ExerciseType, e.Duration)})
 		}
-		m.list.Title =("Exercises today")
+		m.list.Title = "Exercises today"
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -540,70 +548,66 @@ func (m *model) deleteRow(r row) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	var b strings.Builder
-
-	b.WriteString(titleStyle.Render(" diet-tracker tui "))
-	b.WriteString("\n\n")
-
 	navWidth := 18
-	contentWidth := m.width - navWidth - 3
+	headerHeight := 1
+	helpHeight := 1
+	navHeight := m.height - headerHeight - helpHeight - 2 // -2 for borders
 
+	// Header
+	header := headerStyle.Render(" diet-tracker tui ")
+	if m.screen != screenToday {
+		header += "  " + navItemSelected.Render(fmt.Sprintf("[1:%s] [2:%s] [3:%s] [4:%s]",
+			screenToday, screenWeight, screenMeals, screenLog))
+	}
+	header = lipgloss.NewStyle().Width(m.width).Render(header)
+
+	// Nav panel
 	var nav strings.Builder
-	nav.WriteString(navStyle.Render("Navigation"))
+	nav.WriteString(navActive.Render(" Navigation "))
 	nav.WriteString("\n")
 	screens := []screenKind{screenToday, screenWeight, screenMeals, screenLog}
 	for _, s := range screens {
 		icon := s.Icon()
 		label := s.String()
 		selected := s == m.screen
-		style := navItemUnselected
 		if selected {
-			style = navItemSelected
-		}
-		nav.WriteString(style.Render(fmt.Sprintf("  %s  %-14s", icon, label)))
-		if selected {
-			nav.WriteString(" ←")
+			nav.WriteString(navItemSelected.Render(fmt.Sprintf("  %s  %-14s", icon, label)))
+		} else {
+			nav.WriteString(navItemUnselected.Render(fmt.Sprintf("  %s  %-14s", icon, label)))
 		}
 		nav.WriteString("\n")
 	}
 	nav.WriteString("\n")
-	nav.WriteString(helpStyle.Render("  [n] new entry"))
+	nav.WriteString(helpStyle.Render("  [n] new"))
 	nav.WriteString("\n")
-	nav.WriteString(helpStyle.Render("  [x] delete"))
+	nav.WriteString(helpStyle.Render("  [x] del"))
 	nav.WriteString("\n")
 	nav.WriteString(helpStyle.Render("  [q] quit"))
-	nav.WriteString("\n")
 
+	navPanel := lipgloss.NewStyle().Width(navWidth).Height(navHeight).Render(nav.String())
+
+	// Content panel
 	var content strings.Builder
-	content.WriteString(contentStyle.Render(strings.Repeat(" ", contentWidth)))
-	content.WriteString("\n")
+	contentBorderW := m.width - navWidth - 1
 
 	if m.formActive {
-		formWidth := 42
-		formHeight := 7
-		modalX := (m.width - formWidth) / 2
-		modalY := (m.height - formHeight) / 2
+		// Modal form in content area
+		formWidth := 40
+		formHeight := 6
+		modalX := (contentBorderW - formWidth) / 2
+		modalY := (navHeight - formHeight) / 2
 
-		for y := 0; y < m.height-1; y++ {
+		for y := 0; y < navHeight; y++ {
 			if y < modalY {
-				b.WriteString(strings.Repeat(" ", m.width))
-				b.WriteString("\n")
-				continue
-			}
-			if y == modalY {
-				b.WriteString(strings.Repeat(" ", modalX))
-				b.WriteString(modalStyle.BorderTop(true).Render(strings.Repeat(" ", formWidth)))
-				b.WriteString("\n")
-				continue
-			}
-			if y == modalY+formHeight-1 {
-				b.WriteString(strings.Repeat(" ", modalX))
-				b.WriteString(modalStyle.BorderBottom(true).Render(strings.Repeat(" ", formWidth)))
-				b.WriteString("\n")
-				continue
-			}
-			if y > modalY && y < modalY+formHeight-1 {
-				b.WriteString(strings.Repeat(" ", modalX))
+				content.WriteString(strings.Repeat(" ", contentBorderW))
+			} else if y == modalY {
+				content.WriteString(strings.Repeat(" ", modalX))
+				content.WriteString(modalStyle.BorderTop(true).Render(strings.Repeat(" ", formWidth)))
+			} else if y == modalY+formHeight-1 {
+				content.WriteString(strings.Repeat(" ", modalX))
+				content.WriteString(modalStyle.BorderBottom(true).Render(strings.Repeat(" ", formWidth)))
+			} else if y > modalY && y < modalY+formHeight-1 {
+				content.WriteString(strings.Repeat(" ", modalX))
 				row := y - modalY
 				switch row {
 				case 0:
@@ -616,9 +620,9 @@ func (m *model) View() string {
 					case formLog:
 						title = " Log Exercise"
 					}
-					b.WriteString(modalStyle.Render(title))
+					content.WriteString(modalStyle.Render(title))
 				case 1:
-					b.WriteString(modalStyle.Render(strings.Repeat("-", formWidth-2)))
+					content.WriteString(modalStyle.Render(strings.Repeat("-", formWidth-2)))
 				case 2:
 					for i, f := range m.formFields {
 						prompt := f.Prompt
@@ -629,20 +633,20 @@ func (m *model) View() string {
 						if i == m.formIdx {
 							val = inputStyle.Render(val)
 						}
-						b.WriteString(modalStyle.Render(fmt.Sprintf("  %-8s%s", prompt, val)))
+						content.WriteString(modalStyle.Render(fmt.Sprintf("  %-8s%s", prompt, val)))
 					}
 				case 3:
-					b.WriteString(modalStyle.Render("  tab: next · esc: cancel"))
+					content.WriteString(modalStyle.Render("  tab: next · esc: cancel"))
 				default:
-					b.WriteString(modalStyle.Render(strings.Repeat(" ", formWidth-2)))
+					content.WriteString(modalStyle.Render(strings.Repeat(" ", formWidth-2)))
 				}
-				b.WriteString("\n")
-				continue
+			} else {
+				content.WriteString(strings.Repeat(" ", contentBorderW))
 			}
-			b.WriteString(strings.Repeat(" ", m.width))
-			b.WriteString("\n")
+			content.WriteString("\n")
 		}
 	} else {
+		// Normal list view
 		contentArea := m.list.View()
 		if m.status != "" {
 			contentArea += "\n" + statusStyle.Render(" ✓ " + m.status)
@@ -650,22 +654,23 @@ func (m *model) View() string {
 		if m.err != "" {
 			contentArea += "\n" + errStyle.Render(" ⚠ " + m.err)
 		}
-		contentArea += "\n\n" + helpStyle.Render(" n: new  x: delete  q: quit")
-		content.WriteString(lipgloss.PlaceHorizontal(contentWidth, lipgloss.Left, contentArea))
+		contentArea = lipgloss.NewStyle().Width(contentBorderW).Height(navHeight).Render(contentArea)
+		content.WriteString(contentBorder.Render(contentArea))
 	}
 
-	navPanel := lipgloss.PlaceVertical(m.height-2, lipgloss.Top, nav.String())
-	contentPanel := lipgloss.PlaceVertical(m.height-2, lipgloss.Top, content.String())
-	layout := lipgloss.JoinHorizontal(lipgloss.Top,
-		navPanel,
-		lipgloss.NewStyle().
-			BorderLeft(true).
-			BorderForeground(lipgloss.Color("236")).
-			Render(contentPanel),
-	)
-	b.WriteString(layout)
+	contentPanel := lipgloss.NewStyle().Width(contentBorderW).Height(navHeight).Render(content.String())
 
-	return b.String()
+	// Help bar
+	helpBar := lipgloss.NewStyle().Width(m.width).Render(helpStyle.Render(" n: new  x: delete  q: quit"))
+
+	// Assemble
+	layout := lipgloss.JoinVertical(lipgloss.Top,
+		header,
+		lipgloss.JoinHorizontal(lipgloss.Top, navPanel, contentPanel),
+		helpBar,
+	)
+
+	return layout
 }
 
 func (m *model) Run() {
@@ -674,6 +679,8 @@ func (m *model) Run() {
 		panic(err)
 	}
 }
+
+// --- helpers ---
 
 func todayStr() string {
 	return time.Now().In(time.Local).Format(time.DateOnly)
