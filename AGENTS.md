@@ -6,7 +6,8 @@ Diet Tracker: a Go CLI app for logging weight, meals, and exercise into a local 
 
 ```bash
 make run                     # go run with DIET_DB_PATH=./app.db (pass ARGS=... to forward flags)
-go install ./cmd/diet        # install binary (also: make install)
+make install                 # build diet and diet-tui into ~/go/bin (GOBIN is set on this box, so use make install or go build -o, not go install)
+go install ./cmd/diet        # install CLI binary
 go test ./...                # tests so far are unit-level, no DB required
 go run ./cmd/diet <args>     # run manually; DB path from DIET_DB_PATH or XDG data dir
 sqlite3 app.db               # inspect local dev db (Makefile 'inspect' targets the macOS prod path)
