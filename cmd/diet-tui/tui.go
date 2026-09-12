@@ -17,8 +17,6 @@ import (
 	"github.com/dukedelaet/diet-tracker/internal/db"
 )
 
-// --- styles ---
-
 var (
 	dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	headerStyle = lipgloss.NewStyle().
@@ -68,8 +66,6 @@ var (
 		Foreground(lipgloss.Color("230"))
 )
 
-// --- types ---
-
 type screenKind int
 
 const (
@@ -118,10 +114,11 @@ const (
 )
 
 type row struct {
-	kind rowKind
-	id   int64
-	text string
-	meal *db.ListMealLogsByDateRow
+	kind   rowKind
+	id     int64
+	text   string
+	pounds int64
+	meal   *db.ListMealLogsByDateRow
 }
 
 func (r row) title() string        { return r.text }
@@ -137,27 +134,21 @@ const (
 	formLog
 )
 
-// --- model ---
-
 type model struct {
-	width  int
-	height int
-
-	screen     screenKind
-	list       list.Model
-	selectedRow row
-
-	status string
-	err    string
-	form   formKind
-
-	formActive bool
-	formFields []textinput.Model
-	formIdx    int
-
-	out   io.Writer
-	db    *db.Queries
-	ctx   context.Context
+	width, height int
+	screen        screenKind
+	list          list.Model
+	selectedRow   row
+	status        string
+	err           string
+	form          formKind
+	formActive    bool
+	formFields    []textinput.Model
+	formIdx       int
+	out           io.Writer
+	db            *db.Queries
+	ctx           context.Context
+	weights       []row
 }
 
 type NewModelOpts struct {
@@ -193,8 +184,7 @@ func NewModel(opts NewModelOpts) *model {
 }
 
 func (m *model) setupList() {
-	delegate := rowDelegate{}
-	m.list = list.New(nil, delegate, m.width-22, m.height-10)
+	m.list = list.New(nil, rowDelegate{}, m.width-22, m.height-10)
 	m.list.SetShowHelp(false)
 	m.list.SetShowStatusBar(false)
 	m.list.Title = ""
@@ -256,8 +246,6 @@ func (m *model) switchScreen(s screenKind) {
 	m.status = ""
 }
 
-// --- tea.Model interface ---
-
 func (m *model) Init() tea.Cmd {
 	return m.refreshList()
 }
@@ -310,7 +298,6 @@ func (m *model) loadToday() tea.Cmd {
 		}
 		items = append(items, row{kind: kindTotal,
 			text: fmt.Sprintf("Totals  %dP %dC %dF  %dcals", float64AsInt(tot.TotalProtein), float64AsInt(tot.TotalCarbs), float64AsInt(tot.TotalFat), float64AsInt(tot.TotalCalories))})
-
 		m.list.Title = "Today " + d
 		m.list.SetItems(items)
 		return msg{}
@@ -325,8 +312,11 @@ func (m *model) loadRecentWeights() tea.Cmd {
 			return errMsg{err}
 		}
 		var items []list.Item
+		m.weights = nil
 		for _, w := range weights {
-			items = append(items, row{kind: kindWeight, id: w.ID, text: fmt.Sprintf("%s  %d lbs", w.Date, w.Pounds)})
+			r := row{kind: kindWeight, id: w.ID, text: fmt.Sprintf("%s  %d lbs", w.Date, w.Pounds), pounds: w.Pounds}
+			items = append(items, r)
+			m.weights = append(m.weights, r)
 		}
 		m.list.Title = "Recent weights"
 		m.list.SetItems(items)
@@ -382,8 +372,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleFormKey(msg)
 		}
 		return m.handleNavKey(msg)
-	case reloadMsg:
-		return m, m.refreshList()
 	}
 	l, cmd := m.list.Update(msg)
 	m.list = l
@@ -391,23 +379,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleNavKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Screen navigation with arrow keys or j/k
 	switch {
-	case m.formActive:
-		// nothing special for nav keys in form mode
+	case k.Type == tea.KeyCtrlC:
+		return m, tea.Quit
+	case k.String() == "q":
+		return m, tea.Quit
 	case k.Type == tea.KeyUp || k.String() == "k":
 		m.screen = (m.screen - 1 + numScreens) % numScreens
 		return m, m.refreshList()
 	case k.Type == tea.KeyDown || k.String() == "j":
 		m.screen = (m.screen + 1) % numScreens
 		return m, m.refreshList()
-	}
-
-	switch {
-	case k.Type == tea.KeyCtrlC:
-		return m, tea.Quit
-	case k.String() == "q":
-		return m, tea.Quit
 	case k.String() == "1":
 		m.switchScreen(screenToday)
 		return m, m.refreshList()
@@ -494,7 +476,8 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 				}
 				m.status = fmt.Sprintf("updated weight to %d lbs", lbs)
 			}
-			m.cancelForm(); return reloadMsg{}
+			m.cancelForm()
+			return reloadMsg{}
 		}
 	case formMeal:
 		name := f[0].Value()
@@ -520,7 +503,8 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 				return errMsg{err}
 			}
 			m.status = fmt.Sprintf("created meal %s (%d cals)", name, cals)
-			m.cancelForm(); return reloadMsg{}
+			m.cancelForm()
+			return reloadMsg{}
 		}
 	case formLog:
 		t := strings.ToLower(strings.TrimSpace(f[0].Value()))
@@ -536,7 +520,8 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 			m.status = fmt.Sprintf("logged %d min %s", dur, t)
 			f[1].SetValue("30")
 			f[0].SetValue("cardio")
-			m.cancelForm(); return reloadMsg{}
+			m.cancelForm()
+			return reloadMsg{}
 		}
 	}
 	return m, nil
@@ -560,7 +545,8 @@ func (m *model) deleteRow(r row) (tea.Model, tea.Cmd) {
 		if err := deleteFn(); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return errMsg{err}
 		}
-		m.status = "deleted entry"; return reloadMsg{}
+		m.status = "deleted entry"
+		return reloadMsg{}
 	}
 }
 
@@ -572,10 +558,7 @@ func (m *model) View() string {
 	contentWidth := m.width - navWidth
 
 	title := headerStyle.Render(" diet-tracker tui ")
-	header := lipgloss.NewStyle().
-		Width(m.width).
-		Height(headerHeight).
-		Render(title)
+	header := lipgloss.NewStyle().Width(m.width).Height(headerHeight).Render(title)
 
 	var navLines []string
 	navLines = append(navLines, navActive.Render(navLabel(" DIET ", navWidth)))
@@ -596,6 +579,17 @@ func (m *model) View() string {
 	if m.formActive {
 		contentView = lipgloss.Place(contentWidth, bodyHeight,
 			lipgloss.Center, lipgloss.Center, m.modalLines())
+	} else if m.screen == screenWeight && len(m.weights) > 0 {
+		vals := make([]float64, len(m.weights))
+		for i, w := range m.weights {
+			vals[i] = float64(w.pounds)
+		}
+		chart := renderLineChart(vals, contentWidth-4, bodyHeight-2)
+		body := headerStyle.Render("◉ Weight History") + "\n" + chart
+		if m.err != "" {
+			body += "\n" + errStyle.Render(" "+m.err)
+		}
+		contentView = contentBorder.Copy().Width(contentWidth-2).Height(bodyHeight-2).Render(body)
 	} else {
 		listWidth := contentWidth - 4
 		listHeight := bodyHeight - 2
@@ -610,27 +604,54 @@ func (m *model) View() string {
 		if m.status != "" {
 			body += "\n" + statusStyle.Render(" "+m.status)
 		}
-		contentView = contentBorder.Copy().
-			Width(contentWidth - 2).
-			Height(listHeight + 2).
-			Render(body)
+		contentView = contentBorder.Copy().Width(contentWidth-2).Height(listHeight+2).Render(body)
 	}
 
 	helpText := " j/k or ↑↓ nav   n new   x delete   q quit"
 	if m.formActive {
 		helpText = " tab next   enter submit   esc cancel"
 	}
-	helpBar := lipgloss.NewStyle().
-		Width(m.width).
-		Height(helpHeight).
-		Render(helpStyle.Render(helpText))
+	helpBar := lipgloss.NewStyle().Width(m.width).Height(helpHeight).Render(helpStyle.Render(helpText))
 
-	layout := lipgloss.JoinVertical(lipgloss.Top,
-		header,
+	return lipgloss.JoinVertical(lipgloss.Top, header,
 		lipgloss.JoinHorizontal(lipgloss.Top, navPanel, contentView),
-		helpBar,
-	)
-	return layout
+		helpBar)
+}
+
+func renderLineChart(vals []float64, width, height int) string {
+	if len(vals) < 2 {
+		return "(no data)"
+	}
+	minVal, maxVal := vals[0], vals[0]
+	for _, v := range vals {
+		if v < minVal {
+			minVal = v
+		}
+		if v > maxVal {
+			maxVal = v
+		}
+	}
+	if maxVal == minVal {
+		maxVal = minVal + 1
+	}
+	var lines []string
+	for row := height - 1; row >= 0; row-- {
+		line := make([]rune, width)
+		for col := 0; col < width; col++ {
+			line[col] = ' '
+			idx := col * (len(vals) - 1) / (width - 1)
+			if idx >= len(vals) {
+				idx = len(vals) - 1
+			}
+			pct := (vals[idx] - minVal) / (maxVal - minVal)
+			pixelRow := int(pct * float64(height-1))
+			if pixelRow == row {
+				line[col] = '█'
+			}
+		}
+		lines = append(lines, string(line))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func navLabel(s string, w int) string {
@@ -667,14 +688,13 @@ func (m *model) modalLines() string {
 	)
 	return modalStyle.Render(inner)
 }
+
 func (m *model) Run() {
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil && m.out != nil {
 		panic(err)
 	}
 }
-
-// --- helpers ---
 
 func todayStr() string {
 	return time.Now().In(time.Local).Format(time.DateOnly)
