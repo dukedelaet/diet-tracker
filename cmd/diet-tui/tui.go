@@ -615,13 +615,13 @@ func (m *model) renderWeightChart(width, height int) string {
 	}
 	
 	// Find min/max
-	minVal, maxVal := m.weights[0].pounds, m.weights[0].pounds
+	minVal, maxVal := float64(m.weights[0].pounds), float64(m.weights[0].pounds)
 	for _, w := range m.weights {
-		if w.pounds < minVal {
-			minVal = w.pounds
+		if float64(w.pounds) < minVal {
+			minVal = float64(w.pounds)
 		}
-		if w.pounds > maxVal {
-			maxVal = w.pounds
+		if float64(w.pounds) > maxVal {
+			maxVal = float64(w.pounds)
 		}
 	}
 	if maxVal == minVal {
