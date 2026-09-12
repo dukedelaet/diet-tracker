@@ -324,7 +324,7 @@ func (m *model) loadRecentWeights() tea.Cmd {
 		// Initialize chart
 		chartW := 50
 		chartH := 12
-		m.chart = &timeserieslinechart.New(chartW, chartH,
+		m.chart = func() *timeserieslinechart.Model { m := timeserieslinechart.New(chartW, chartH, timeserieslinechart.WithXLabelFormatter(timeserieslinechart.DateTimeLabelFormatter())); return &m }()(chartW, chartH,
 			timeserieslinechart.WithXLabelFormatter(timeserieslinechart.DateTimeLabelFormatter()),
 		)
 		m.chart.SetYRange(200, 220) // weight range
