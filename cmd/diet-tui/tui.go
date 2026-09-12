@@ -15,7 +15,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
 	"github.com/dukedelaet/diet-tracker/internal/db"
 )
 
@@ -151,7 +150,7 @@ type model struct {
 	db            *db.Queries
 	ctx           context.Context
 	weights       []row
-	chart         *timeserieslinechart.Model
+	chart         timeserieslinechart.Model
 }
 
 type NewModelOpts struct {
@@ -247,7 +246,7 @@ func (m *model) switchScreen(s screenKind) {
 	m.screen = s
 	m.cancelForm()
 	m.status = ""
-	m.chart = nil // reset chart when switching screens
+	m.chart = timeserieslinechart.Model{}
 }
 
 func (m *model) Init() tea.Cmd {
@@ -322,13 +321,10 @@ func (m *model) loadRecentWeights() tea.Cmd {
 			items = append(items, r)
 			m.weights = append(m.weights, r)
 		}
-		// Initialize chart
-		chartW := 50
-		chartH := 12
-		m.chart = func() *timeserieslinechart.Model { m := timeserieslinechart.New(chartW, chartH, timeserieslinechart.WithXLabelFormatter(timeserieslinechart.DateTimeLabelFormatter())); return &m }()(chartW, chartH,
+		m.chart = timeserieslinechart.New(50, 12,
 			timeserieslinechart.WithXLabelFormatter(timeserieslinechart.DateTimeLabelFormatter()),
 		)
-		m.chart.SetYRange(200, 220) // weight range
+		m.chart.SetYRange(200, 220)
 		m.chart.DrawXYAxisAndLabel()
 		for _, w := range m.weights {
 			t, _ := time.Parse("2006-01-02", w.text[:10])
@@ -596,7 +592,7 @@ func (m *model) View() string {
 	if m.formActive {
 		contentView = lipgloss.Place(contentWidth, bodyHeight,
 			lipgloss.Center, lipgloss.Center, m.modalLines())
-	} else if m.screen == screenWeight && m.chart != nil {
+	} else if m.screen == screenWeight && !m.chart.View().TrimRight() == "" {
 		body := "◉ Weight History\n" + m.chart.View()
 		if m.err != "" {
 			body += "\n" + errStyle.Render(" "+m.err)
