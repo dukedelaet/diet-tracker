@@ -592,7 +592,7 @@ func (m *model) View() string {
 		selected := s == m.screen
 		item := fmt.Sprintf("  %s  %-14s", icon, label)
 		if selected {
-			navItems.WriteString(navItemSelected.Render(item) + " ←")
+			navItems.WriteString(navActive.Render(item) + " ")
 		} else {
 			navItems.WriteString(navItemUnselected.Render(item))
 		}
@@ -690,7 +690,7 @@ func (m *model) View() string {
 	helpBar := lipgloss.NewStyle().
 		Width(m.width).
 		Height(helpHeight).
-		Render(helpStyle.Render(" ↑↓: nav  n: new  x: delete  q: quit"))
+		Render(helpStyle.Render(" ↑↓ nav  n: new  x: del  q: quit"))
 
 	// Assemble layout
 	layout := lipgloss.JoinVertical(lipgloss.Top,
