@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -149,6 +150,7 @@ type model struct {
 	db            *db.Queries
 	ctx           context.Context
 	weights       []row
+	chart         *timeserieslinechart.Model
 }
 
 type NewModelOpts struct {
@@ -244,6 +246,7 @@ func (m *model) switchScreen(s screenKind) {
 	m.screen = s
 	m.cancelForm()
 	m.status = ""
+	m.chart = nil // reset chart when switching screens
 }
 
 func (m *model) Init() tea.Cmd {
@@ -318,6 +321,19 @@ func (m *model) loadRecentWeights() tea.Cmd {
 			items = append(items, r)
 			m.weights = append(m.weights, r)
 		}
+		// Initialize chart
+		chartW := 50
+		chartH := 12
+		m.chart = &timeserieslinechart.New(chartW, chartH,
+			timeserieslinechart.WithXLabelFormatter(timeserieslinechart.DateTimeLabelFormatter()),
+		)
+		m.chart.SetYRange(200, 220) // weight range
+		m.chart.DrawXYAxisAndLabel()
+		for _, w := range m.weights {
+			t, _ := time.Parse("2006-01-02", w.text[:10])
+			m.chart.Push(timeserieslinechart.TimePoint{Time: t, Value: float64(w.pounds)})
+		}
+		m.chart.DrawAll()
 		m.list.Title = "Recent weights"
 		m.list.SetItems(items)
 		return msg{}
@@ -579,13 +595,8 @@ func (m *model) View() string {
 	if m.formActive {
 		contentView = lipgloss.Place(contentWidth, bodyHeight,
 			lipgloss.Center, lipgloss.Center, m.modalLines())
-	} else if m.screen == screenWeight && len(m.weights) > 0 {
-		vals := make([]float64, len(m.weights))
-		for i, w := range m.weights {
-			vals[i] = float64(w.pounds)
-		}
-		chart := renderLineChart(vals, contentWidth-4, bodyHeight-2)
-		body := headerStyle.Render("◉ Weight History") + "\n" + chart
+	} else if m.screen == screenWeight && m.chart != nil {
+		body := "◉ Weight History\n" + m.chart.View()
 		if m.err != "" {
 			body += "\n" + errStyle.Render(" "+m.err)
 		}
@@ -616,42 +627,6 @@ func (m *model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Top, header,
 		lipgloss.JoinHorizontal(lipgloss.Top, navPanel, contentView),
 		helpBar)
-}
-
-func renderLineChart(vals []float64, width, height int) string {
-	if len(vals) < 2 {
-		return "(no data)"
-	}
-	minVal, maxVal := vals[0], vals[0]
-	for _, v := range vals {
-		if v < minVal {
-			minVal = v
-		}
-		if v > maxVal {
-			maxVal = v
-		}
-	}
-	if maxVal == minVal {
-		maxVal = minVal + 1
-	}
-	var lines []string
-	for row := height - 1; row >= 0; row-- {
-		line := make([]rune, width)
-		for col := 0; col < width; col++ {
-			line[col] = ' '
-			idx := col * (len(vals) - 1) / (width - 1)
-			if idx >= len(vals) {
-				idx = len(vals) - 1
-			}
-			pct := (vals[idx] - minVal) / (maxVal - minVal)
-			pixelRow := int(pct * float64(height-1))
-			if pixelRow == row {
-				line[col] = '█'
-			}
-		}
-		lines = append(lines, string(line))
-	}
-	return strings.Join(lines, "\n")
 }
 
 func navLabel(s string, w int) string {
