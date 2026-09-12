@@ -239,6 +239,7 @@ func (m *model) startForm(kind formKind) {
 	m.formFields = m.newFormFields(kind)
 	m.formIdx = 0
 	m.err = ""
+	m.formFields[0].Focus()
 }
 
 func (m *model) cancelForm() {
@@ -481,15 +482,19 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 		}
 		return m, func() tea.Msg {
 			d := todayStr()
-			if err := m.db.UpdateWeight(m.ctx, db.UpdateWeightParams{Pounds: int64(lbs), Date: d}); err == nil {
-				m.status = fmt.Sprintf("updated weight to %d lbs", lbs)
-			} else if errors.Is(err, sql.ErrNoRows) {
+			_, getErr := m.db.GetWeightByDate(m.ctx, d)
+			if errors.Is(getErr, sql.ErrNoRows) {
 				if _, err := m.db.CreateWeight(m.ctx, db.CreateWeightParams{Pounds: int64(lbs), Date: d}); err != nil {
 					return errMsg{err}
 				}
 				m.status = fmt.Sprintf("logged weight %d lbs", lbs)
+			} else if getErr != nil {
+				return errMsg{getErr}
 			} else {
-				return errMsg{err}
+				if err := m.db.UpdateWeight(m.ctx, db.UpdateWeightParams{Pounds: int64(lbs), Date: d}); err != nil {
+					return errMsg{err}
+				}
+				m.status = fmt.Sprintf("updated weight to %d lbs", lbs)
 			}
 			m.cancelForm()
 			return m.refreshList()
