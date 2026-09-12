@@ -600,7 +600,7 @@ func (m *model) View() string {
 			lipgloss.Center, lipgloss.Center, m.modalLines())
 	} else if m.screen == screenWeight && len(m.weights) > 0 {
 		// Render ntcharts time series chart
-		body := "◉ Weight History\n" + m.chart.View()
+		body := m.chart.View()
 		if m.err != "" {
 			body += "\n" + errStyle.Render(" "+m.err)
 		}
