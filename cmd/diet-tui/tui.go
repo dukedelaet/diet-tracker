@@ -130,6 +130,19 @@ func (r row) parseDate() time.Time {
 	return t
 }
 
+// ExerciseDB contains predefined exercises with calories per minute
+var ExerciseDB = map[string]struct {
+	CalPerMin float64
+	Desc      string
+}{
+	"cardio":    {CalPerMin: 8.0, Desc: "Cardio (running, cycling)"},
+	"strength":  {CalPerMin: 5.0, Desc: "Strength training"},
+	"walking":   {CalPerMin: 4.0, Desc: "Walking"},
+	"swimming":  {CalPerMin: 10.0, Desc: "Swimming"},
+	"yoga":      {CalPerMin: 3.0, Desc: "Yoga"},
+	"hiit":      {CalPerMin: 12.0, Desc: "HIIT"},
+}
+
 type formKind int
 
 const (
@@ -706,6 +719,14 @@ func (m *model) Run() {
 	if _, err := p.Run(); err != nil && m.out != nil {
 		panic(err)
 	}
+}
+
+// CalculateBMR uses Mifflin-St Jeor equation
+func CalculateBMR(weightKg, heightCm, age int, male bool) float64 {
+	if male {
+		return 10*float64(weightKg) + 6.25*float64(heightCm) - 5*float64(age) + 5
+	}
+	return 10*float64(weightKg) + 6.25*float64(heightCm) - 5*float64(age) - 161
 }
 
 func todayStr() string {
