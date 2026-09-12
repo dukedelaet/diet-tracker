@@ -4,8 +4,10 @@ run:
 	@go run ./cmd/diet $(ARGS)
 
 install:
-	@go install ./cmd/diet ./cmd/tui
-	@echo "Installed latest binaries to ~/go/bin"
+	@mkdir -p "$$HOME/go/bin"
+	@go build -o "$$HOME/go/bin/diet" ./cmd/diet
+	@go build -o "$$HOME/go/bin/diet-tui" ./cmd/diet-tui
+	@echo "Installed diet and diet-tui to ~/go/bin"
 
 inspect:
 	@echo "opening prod db"
