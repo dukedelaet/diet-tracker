@@ -12,15 +12,15 @@ import (
 	"strings"
 
 	"github.com/daved/clic"
-	"github.com/guitarkeegan/diet-tracker/internal/db"
-	"github.com/guitarkeegan/diet-tracker/migrations"
+	"github.com/dukedelaet/diet-tracker/internal/db"
+	"github.com/dukedelaet/diet-tracker/migrations"
 	"github.com/pressly/goose/v3"
 
 	_ "modernc.org/sqlite"
 )
 
 func main() {
-	sqlDB, err := dbConn("file:./app.db")
+	sqlDB, err := dbConn()
 	if err != nil {
 		log.Fatalf("db connection failed: %s", err)
 	}
@@ -120,7 +120,7 @@ func main() {
 
 }
 
-func dbConn(dsn string) (*sql.DB, error) {
+func dbConn() (*sql.DB, error) {
 	dsn, err := dbDSN()
 	if err != nil {
 		return nil, fmt.Errorf("dbConn: %w", err)

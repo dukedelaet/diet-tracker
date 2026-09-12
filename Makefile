@@ -1,14 +1,12 @@
 .PHONY: run install inspect
 
-DIET_DB_PATH=./app.db
-
 run:
-	@DIET_DB_PATH=$(DIET_DB_PATH) go run ./cmd/diet $(ARGS)
+	@go run ./cmd/diet $(ARGS)
 
 install:
-	@go install ./cmd/diet
-	@echo "Installed latest version to Application Support"
+	@go install ./cmd/diet ./cmd/tui
+	@echo "Installed latest binaries to ~/go/bin"
 
 inspect:
 	@echo "opening prod db"
-	@sqlite3 ~/Library/Application\ Support/diet-tracker/app.db
+	@sqlite3 "$${XDG_DATA_HOME:-$$HOME/.local/share}/diet-tracker/app.db"
