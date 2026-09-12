@@ -382,6 +382,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleFormKey(msg)
 		}
 		return m.handleNavKey(msg)
+	case reloadMsg:
+		return m, m.refreshList()
 	}
 	l, cmd := m.list.Update(msg)
 	m.list = l
@@ -496,8 +498,7 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 				}
 				m.status = fmt.Sprintf("updated weight to %d lbs", lbs)
 			}
-			m.cancelForm()
-			return m.refreshList()
+			m.cancelForm(); return reloadMsg{}
 		}
 	case formMeal:
 		name := f[0].Value()
@@ -523,8 +524,7 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 				return errMsg{err}
 			}
 			m.status = fmt.Sprintf("created meal %s (%d cals)", name, cals)
-			m.cancelForm()
-			return m.refreshList()
+			m.cancelForm(); return reloadMsg{}
 		}
 	case formLog:
 		t := strings.ToLower(strings.TrimSpace(f[0].Value()))
@@ -540,8 +540,7 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 			m.status = fmt.Sprintf("logged %d min %s", dur, t)
 			f[1].SetValue("30")
 			f[0].SetValue("cardio")
-			m.cancelForm()
-			return m.refreshList()
+			m.cancelForm(); return reloadMsg{}
 		}
 	}
 	return m, nil
@@ -565,8 +564,7 @@ func (m *model) deleteRow(r row) (tea.Model, tea.Cmd) {
 		if err := deleteFn(); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return errMsg{err}
 		}
-		m.status = "deleted entry"
-		return m.refreshList()
+		m.status = "deleted entry"; return reloadMsg{}
 	}
 }
 
@@ -695,6 +693,7 @@ func float64AsInt(v interface{}) int {
 }
 
 type errMsg struct{ err error }
+type reloadMsg struct{}
 type msg struct{}
 
 type rowDelegate struct{ list.DefaultDelegate }

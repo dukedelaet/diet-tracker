@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/guitarkeegan/diet-tracker/internal/db"
+	"github.com/dukedelaet/diet-tracker/internal/db"
 	"io"
 	"testing"
 )

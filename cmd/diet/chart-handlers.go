@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/daved/clic"
-	"github.com/guitarkeegan/diet-tracker/internal/db"
+	"github.com/dukedelaet/diet-tracker/internal/db"
 )
 
 //go:embed templates/*
