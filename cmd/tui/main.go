@@ -58,6 +58,13 @@ func dbDSN(override string) string {
 		}
 		return "file:" + p
 	}
+	if xdg := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); xdg != "" {
+		p := filepath.Join(xdg, "diet-tracker", "app.db")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return ""
+		}
+		return "file:" + p
+	}
 	home, _ := os.UserHomeDir()
 	p := filepath.Join(home, ".local", "share", "diet-tracker", "app.db")
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
