@@ -551,55 +551,62 @@ func (m *model) View() string {
 	navWidth := 18
 	headerHeight := 1
 	helpHeight := 1
-	navHeight := m.height - headerHeight - helpHeight - 2 // -2 for borders
+	contentHeight := m.height - headerHeight - helpHeight - 2
 
 	// Header
-	header := headerStyle.Render(" diet-tracker tui ")
+	headerText := " diet-tracker tui "
 	if m.screen != screenToday {
-		header += "  " + navItemSelected.Render(fmt.Sprintf("[1:%s] [2:%s] [3:%s] [4:%s]",
+		headerText += "  " + navItemSelected.Render(fmt.Sprintf("[1:%s] [2:%s] [3:%s] [4:%s]",
 			screenToday, screenWeight, screenMeals, screenLog))
 	}
-	header = lipgloss.NewStyle().Width(m.width).Render(header)
+	header := lipgloss.NewStyle().
+		Width(m.width).
+		Height(headerHeight).
+		Render(headerStyle.Render(headerText))
 
 	// Nav panel
-	var nav strings.Builder
-	nav.WriteString(navActive.Render(" Navigation "))
-	nav.WriteString("\n")
+	var navItems strings.Builder
+	navItems.WriteString(navActive.Render(" Navigation "))
+	navItems.WriteString("\n")
 	screens := []screenKind{screenToday, screenWeight, screenMeals, screenLog}
 	for _, s := range screens {
 		icon := s.Icon()
 		label := s.String()
 		selected := s == m.screen
+		item := fmt.Sprintf("  %s  %-14s", icon, label)
 		if selected {
-			nav.WriteString(navItemSelected.Render(fmt.Sprintf("  %s  %-14s", icon, label)))
+			navItems.WriteString(navItemSelected.Render(item) + " ←")
 		} else {
-			nav.WriteString(navItemUnselected.Render(fmt.Sprintf("  %s  %-14s", icon, label)))
+			navItems.WriteString(navItemUnselected.Render(item))
 		}
-		nav.WriteString("\n")
+		navItems.WriteString("\n")
 	}
-	nav.WriteString("\n")
-	nav.WriteString(helpStyle.Render("  [n] new"))
-	nav.WriteString("\n")
-	nav.WriteString(helpStyle.Render("  [x] del"))
-	nav.WriteString("\n")
-	nav.WriteString(helpStyle.Render("  [q] quit"))
+	navItems.WriteString("\n")
+	navItems.WriteString(helpStyle.Render("  [n] new"))
+	navItems.WriteString("\n")
+	navItems.WriteString(helpStyle.Render("  [x] del"))
+	navItems.WriteString("\n")
+	navItems.WriteString(helpStyle.Render("  [q] quit"))
 
-	navPanel := lipgloss.NewStyle().Width(navWidth).Height(navHeight).Render(nav.String())
+	navPanel := lipgloss.NewStyle().
+		Width(navWidth).
+		Height(contentHeight).
+		Render(navItems.String())
 
 	// Content panel
-	var content strings.Builder
-	contentBorderW := m.width - navWidth - 1
+	contentWidth := m.width - navWidth - 1
 
+	var content strings.Builder
 	if m.formActive {
-		// Modal form in content area
+		// Modal form centered in content area
 		formWidth := 40
 		formHeight := 6
-		modalX := (contentBorderW - formWidth) / 2
-		modalY := (navHeight - formHeight) / 2
+		modalX := (contentWidth - formWidth) / 2
+		modalY := (contentHeight - formHeight) / 2
 
-		for y := 0; y < navHeight; y++ {
+		for y := 0; y < contentHeight; y++ {
 			if y < modalY {
-				content.WriteString(strings.Repeat(" ", contentBorderW))
+				content.WriteString(strings.Repeat(" ", contentWidth))
 			} else if y == modalY {
 				content.WriteString(strings.Repeat(" ", modalX))
 				content.WriteString(modalStyle.BorderTop(true).Render(strings.Repeat(" ", formWidth)))
@@ -633,7 +640,7 @@ func (m *model) View() string {
 						if i == m.formIdx {
 							val = inputStyle.Render(val)
 						}
-						content.WriteString(modalStyle.Render(fmt.Sprintf("  %-8s%s", prompt, val)))
+						content.WriteString(modalStyle.Render(fmt.Sprintf("  %-10s%s", prompt, val)))
 					}
 				case 3:
 					content.WriteString(modalStyle.Render("  tab: next · esc: cancel"))
@@ -641,29 +648,34 @@ func (m *model) View() string {
 					content.WriteString(modalStyle.Render(strings.Repeat(" ", formWidth-2)))
 				}
 			} else {
-				content.WriteString(strings.Repeat(" ", contentBorderW))
+				content.WriteString(strings.Repeat(" ", contentWidth))
 			}
 			content.WriteString("\n")
 		}
 	} else {
 		// Normal list view
-		contentArea := m.list.View()
+		listView := m.list.View()
 		if m.status != "" {
-			contentArea += "\n" + statusStyle.Render(" ✓ " + m.status)
+			listView += "\n" + statusStyle.Render(" ✓ " + m.status)
 		}
 		if m.err != "" {
-			contentArea += "\n" + errStyle.Render(" ⚠ " + m.err)
+			listView += "\n" + errStyle.Render(" ⚠ " + m.err)
 		}
-		contentArea = lipgloss.NewStyle().Width(contentBorderW).Height(navHeight).Render(contentArea)
-		content.WriteString(contentBorder.Render(contentArea))
+		content.WriteString(contentBorder.Render(listView))
 	}
 
-	contentPanel := lipgloss.NewStyle().Width(contentBorderW).Height(navHeight).Render(content.String())
+	contentPanel := lipgloss.NewStyle().
+		Width(contentWidth).
+		Height(contentHeight).
+		Render(content.String())
 
 	// Help bar
-	helpBar := lipgloss.NewStyle().Width(m.width).Render(helpStyle.Render(" n: new  x: delete  q: quit"))
+	helpBar := lipgloss.NewStyle().
+		Width(m.width).
+		Height(helpHeight).
+		Render(helpStyle.Render(" n: new  x: delete  q: quit"))
 
-	// Assemble
+	// Assemble layout
 	layout := lipgloss.JoinVertical(lipgloss.Top,
 		header,
 		lipgloss.JoinHorizontal(lipgloss.Top, navPanel, contentPanel),
@@ -672,6 +684,7 @@ func (m *model) View() string {
 
 	return layout
 }
+
 
 func (m *model) Run() {
 	p := tea.NewProgram(m)
