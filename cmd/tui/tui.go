@@ -76,6 +76,7 @@ const (
 	screenWeight
 	screenMeals
 	screenLog
+	numScreens
 )
 
 func (s screenKind) String() string {
@@ -386,6 +387,22 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleNavKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Screen navigation with arrow keys
+	switch k.Type {
+	case tea.KeyUp:
+		if m.formActive {
+			break
+		}
+		m.screen = (m.screen - 1 + numScreens) % numScreens
+		return m, m.refreshList()
+	case tea.KeyDown:
+		if m.formActive {
+			break
+		}
+		m.screen = (m.screen + 1) % numScreens
+		return m, m.refreshList()
+	}
+
 	switch {
 	case k.Type == tea.KeyCtrlC:
 		return m, tea.Quit
@@ -673,7 +690,7 @@ func (m *model) View() string {
 	helpBar := lipgloss.NewStyle().
 		Width(m.width).
 		Height(helpHeight).
-		Render(helpStyle.Render(" n: new  x: delete  q: quit"))
+		Render(helpStyle.Render(" ↑↓: nav  n: new  x: delete  q: quit"))
 
 	// Assemble layout
 	layout := lipgloss.JoinVertical(lipgloss.Top,
