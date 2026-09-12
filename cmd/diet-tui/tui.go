@@ -600,8 +600,7 @@ func (m *model) View() string {
 	bodyHeight := m.height - headerHeight - helpHeight
 	contentWidth := m.width - navWidth
 
-	title := headerStyle.Render(" diet-tracker tui ")
-	header := lipgloss.NewStyle().Width(m.width).Height(headerHeight).Render(title)
+	header := lipgloss.NewStyle().Width(m.width).Height(headerHeight).Render("")
 
 	var navLines []string
 	navLines = append(navLines, navActive.Render(navLabel(" DIET ", navWidth)))
