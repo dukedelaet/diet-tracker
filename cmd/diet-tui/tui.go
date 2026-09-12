@@ -74,6 +74,7 @@ const (
 	screenWeight
 	screenMeals
 	screenExercise
+	screenFasting
 	numScreens
 )
 
@@ -87,6 +88,8 @@ func (s screenKind) String() string {
 		return "meals"
 	case screenExercise:
 		return "exercise"
+	case screenFasting:
+		return "fasting"
 	}
 	return ""
 }
@@ -101,6 +104,8 @@ func (s screenKind) Icon() string {
 		return "🍽"
 	case screenExercise:
 		return "▶"
+	case screenFasting:
+		return "⏰"
 	}
 	return "·"
 }
@@ -280,6 +285,8 @@ func (m *model) refreshList() tea.Cmd {
 		return m.loadMeals()
 	case screenExercise:
 		return m.loadLog()
+	case screenFasting:
+		return m.loadFasting()
 	}
 	return nil
 }
@@ -395,6 +402,19 @@ func (m *model) loadMeals() tea.Cmd {
 				text: fmt.Sprintf("%-24s  %dP %dC %dF  %dcals", l.Name, l.Protein, l.Carbs, l.Fat, l.Calories)})
 		}
 		m.list.Title = "Meals logged today"
+		m.list.SetItems(items)
+		return msg{}
+	}
+}
+
+func (m *model) loadFasting() tea.Cmd {
+	return func() tea.Msg {
+		// Fasting tracking - show current fast status
+		var items []list.Item
+		items = append(items, row{text: "Fast started: --"})
+		items = append(items, row{text: "Duration: --"})
+		items = append(items, row{text: "Next meal: --"})
+		m.list.Title = "Fasting"
 		m.list.SetItems(items)
 		return msg{}
 	}
@@ -627,7 +647,7 @@ func (m *model) View() string {
 
 	var navLines []string
 	navLines = append(navLines, navActive.Render(navLabel("diet-tracker", navWidth)))
-	for _, s := range []screenKind{screenToday, screenWeight, screenMeals, screenExercise} {
+	for _, s := range []screenKind{screenToday, screenWeight, screenMeals, screenExercise, screenFasting} {
 		label := fmt.Sprintf(" %s %s", s.Icon(), s.String())
 		if s == m.screen {
 			navLines = append(navLines, navActive.Render(navLabel(label, navWidth)))
