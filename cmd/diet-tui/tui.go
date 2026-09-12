@@ -324,9 +324,19 @@ func (m *model) loadRecentWeights() tea.Cmd {
 		// Build chart - use explicit UTC times
 		chartW := 50
 		chartH := 15
+		// Calculate time range from data
+		var minTime, maxTime time.Time
+		if len(m.weights) > 0 {
+			minTime, _ = time.Parse("2006-01-02", m.weights[0].text[:10])
+			maxTime, _ = time.Parse("2006-01-02", m.weights[len(m.weights)-1].text[:10])
+			// Add buffer time on both ends
+			minTime = minTime.AddDate(0, 0, -1)
+			maxTime = maxTime.AddDate(0, 0, 1)
+		}
 		m.chart = timeserieslinechart.New(chartW, chartH,
 			timeserieslinechart.WithXLabelFormatter(timeserieslinechart.DateTimeLabelFormatter()),
 			timeserieslinechart.WithYRange(200, 220),
+			timeserieslinechart.WithTimeRange(minTime, maxTime),
 		)
 		m.chart.DrawXYAxisAndLabel()
 		for _, w := range m.weights {
