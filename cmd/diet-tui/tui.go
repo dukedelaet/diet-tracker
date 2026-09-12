@@ -542,10 +542,15 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 			} else if !errors.Is(err, sql.ErrNoRows) {
 				return errMsg{err}
 			}
-			meal, err := m.db.CreateMeal(m.ctx, db.CreateMealParams{Name: name, Protein: int64(p), Carbs: int64(c), Fat: int64(fat), Calories: int64(cals)}); err != nil {
-				return errMsg{err}
-			}
-			// Also log the meal for today
+		meal, err := m.db.CreateMeal(m.ctx, db.CreateMealParams{Name: name, Protein: int64(p), Carbs: int64(c), Fat: int64(fat), Calories: int64(cals)})
+		if err != nil {
+			return errMsg{err}
+		}
+		// Also log the meal for today
+		_, err = m.db.LogMeal(m.ctx, db.LogMealParams{Date: todayStr(), Name: meal.Name})
+		if err != nil {
+			return errMsg{err}
+		}
 			_, err = m.db.LogMeal(m.ctx, db.LogMealParams{Date: todayStr(), Name: meal.Name})
 			if err != nil {
 				return errMsg{err}
