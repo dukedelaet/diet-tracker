@@ -581,7 +581,7 @@ func (m *model) View() string {
 			lipgloss.Center, lipgloss.Center, m.modalLines())
 	} else if m.screen == screenWeight && len(m.weights) > 0 {
 		chart := m.renderWeightChart(contentWidth-2, bodyHeight-2)
-		contentView = contentBorder.Render(chart)
+		contentView = chart
 	} else {
 		listWidth := contentWidth - 4
 		listHeight := bodyHeight - 2
