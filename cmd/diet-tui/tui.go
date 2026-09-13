@@ -458,6 +458,9 @@ func (m *model) handleNavKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case k.Type == tea.KeyCtrlC:
 		return m, tea.Quit
+	case k.String() == "r":
+		m.status = "reloaded"
+		return m, m.refreshList()
 	case k.String() == "q":
 		return m, tea.Quit
 	case k.Type == tea.KeyUp || k.String() == "k":
@@ -688,7 +691,7 @@ func (m *model) View() string {
 		contentView = contentBorder.Copy().Width(contentWidth-2).Height(listHeight+2).Render(body)
 	}
 
-	helpText := " j/k or ↑↓ nav   n new   x delete   q quit"
+	helpText := " j/k or ↑↓ nav   n new   r reload   x delete   q quit"
 	if m.formActive {
 		helpText = " tab next   enter submit   esc cancel"
 	}
