@@ -248,7 +248,7 @@ func NewModel(opts NewModelOpts) *model {
 }
 
 func (m *model) setupList() {
-	m.list = list.New(nil, rowDelegate{}, m.width-22, m.height-10)
+	m.list = list.New(nil, rowDelegate{}, m.width-24, m.height-4)
 	m.list.SetShowHelp(false)
 	m.list.SetShowStatusBar(false)
 	m.list.Title = ""
@@ -490,6 +490,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m.list.SetSize(m.width-24, m.height-4)
+		return m, nil
+	case errMsg:
+		m.err = msg.err.Error()
 		return m, nil
 	case tea.KeyMsg:
 		if m.formActive {
@@ -723,12 +727,10 @@ func (m *model) View() string {
 		}
 		contentView = contentBorder.Render(body)
 	} else {
-		listWidth := contentWidth - 4
 		listHeight := bodyHeight - 2
 		if listHeight < 1 {
 			listHeight = 1
 		}
-		m.list.SetSize(listWidth, listHeight)
 		body := m.list.View()
 		if m.err != "" {
 			body += "\n" + errStyle.Render(" "+m.err)
@@ -846,12 +848,10 @@ func (rowDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 	case kindExercise:
 		fmt.Fprint(w, style.Render("  "+r.text))
 	case kindTotal:
-		fmt.Fprint(w, totalStyle.Render(strings.Repeat("─", 50) + "\n" + r.text))
-		return
+		fmt.Fprint(w, totalStyle.Render(r.text))
 	case kindHeader:
 		fmt.Fprint(w, tableHeader.Render("  Name                     P   C   F   Cals"))
 	case kindSeparator:
 		fmt.Fprint(w, separator.Render(strings.Repeat("─", 50)))
 	}
-	fmt.Fprint(w, "\n")
 }
