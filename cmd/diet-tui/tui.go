@@ -757,11 +757,18 @@ func todayStr() string {
 }
 
 func float64AsInt(v interface{}) int {
-	f, ok := v.(float64)
-	if !ok {
+	switch val := v.(type) {
+	case float64:
+		return int(val)
+	case int:
+		return val
+	case int64:
+		return int(val)
+	case nil:
+		return 0
+	default:
 		return 0
 	}
-	return int(f)
 }
 
 type errMsg struct{ err error }
