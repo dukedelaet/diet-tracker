@@ -65,6 +65,29 @@ var (
 
 	inputStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("230"))
+
+	tableHeader = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("99")).
+		Padding(0, 1)
+
+	tableCell = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("243")).
+		Padding(0, 1)
+
+	tableSelected = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("230")).
+		Padding(0, 1)
+
+	separator = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("236")).
+		Padding(0, 1)
+
+	totalStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("51")).
+		Padding(0, 1)
 )
 
 type screenKind int
@@ -117,6 +140,8 @@ const (
 	kindMealLog
 	kindExercise
 	kindTotal
+	kindHeader
+	kindSeparator
 )
 
 type row struct {
@@ -127,7 +152,22 @@ type row struct {
 	meal   *db.ListMealLogsByDateRow
 }
 
-func (r row) title() string        { return r.text }
+func (r row) title() string {
+	switch r.kind {
+	case kindWeight:
+		return fmt.Sprintf("Weight  %d lbs", r.pounds)
+	case kindMealLog:
+		if r.meal != nil {
+			return fmt.Sprintf("%s  %dP %dC %dF  %dcals", r.meal.Name, r.meal.Protein, r.meal.Carbs, r.meal.Fat, r.meal.Calories)
+		}
+		return r.text
+	case kindExercise:
+		return r.text
+	case kindTotal:
+		return r.text
+	}
+	return r.text
+}
 func (r row) description() string { return "" }
 func (r row) FilterValue() string { return "" }
 func (r row) parseDate() time.Time {
@@ -298,10 +338,12 @@ func (m *model) loadToday() tea.Cmd {
 		w, err := q.GetWeightByDate(ctx, d)
 		switch {
 		case err == nil:
-			items = append(items, row{kind: kindWeight, id: w.ID, text: fmt.Sprintf("Weight  %d lbs", w.Pounds)})
+			items = append(items, row{kind: kindWeight, id: w.ID, pounds: w.Pounds, text: fmt.Sprintf("Weight  %d lbs", w.Pounds)})
 		case !errors.Is(err, sql.ErrNoRows):
 			return errMsg{err}
 		}
+		items = append(items, row{kind: kindSeparator})
+		items = append(items, row{kind: kindHeader})
 		logs, err := q.ListMealLogsByDate(ctx, d)
 		if err != nil {
 			return errMsg{err}
@@ -309,7 +351,10 @@ func (m *model) loadToday() tea.Cmd {
 		for _, l := range logs {
 			l := l
 			items = append(items, row{kind: kindMealLog, id: l.ID, meal: &l,
-				text: fmt.Sprintf("%-24s  %dP %dC %dF  %dcals", l.Name, l.Protein, l.Carbs, l.Fat, l.Calories)})
+				text: fmt.Sprintf("%s  %dP %dC %dF  %dcals", l.Name, l.Protein, l.Carbs, l.Fat, l.Calories)})
+		}
+		if len(logs) > 0 {
+			items = append(items, row{kind: kindSeparator})
 		}
 		exs, err := q.ListExercisesByDate(ctx, d)
 		if err != nil {
@@ -318,6 +363,9 @@ func (m *model) loadToday() tea.Cmd {
 		for _, e := range exs {
 			items = append(items, row{kind: kindExercise, id: e.ID,
 				text: fmt.Sprintf("%s  %d min", e.ExerciseType, e.Duration)})
+		}
+		if len(exs) > 0 {
+			items = append(items, row{kind: kindSeparator})
 		}
 		tot, err := q.GetDailyTotals(ctx, d)
 		if err != nil {
@@ -782,5 +830,28 @@ func (rowDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) 
 	if !ok {
 		return
 	}
-	fmt.Fprint(w, r.text)
+	style := tableCell
+	if m.SelectedItem() == item {
+		style = tableSelected
+	}
+	switch r.kind {
+	case kindWeight:
+		fmt.Fprint(w, style.Render(fmt.Sprintf("⚖  Weight  %d lbs", r.pounds)))
+	case kindMealLog:
+		if r.meal != nil {
+			fmt.Fprint(w, style.Render(fmt.Sprintf("  %-22s%dP %3dC %3dF  %4dcals", r.meal.Name, r.meal.Protein, r.meal.Carbs, r.meal.Fat, r.meal.Calories)))
+		} else {
+			fmt.Fprint(w, style.Render(r.text))
+		}
+	case kindExercise:
+		fmt.Fprint(w, style.Render("  "+r.text))
+	case kindTotal:
+		fmt.Fprint(w, totalStyle.Render(strings.Repeat("─", 50) + "\n" + r.text))
+		return
+	case kindHeader:
+		fmt.Fprint(w, tableHeader.Render("  Name                     P   C   F   Cals"))
+	case kindSeparator:
+		fmt.Fprint(w, separator.Render(strings.Repeat("─", 50)))
+	}
+	fmt.Fprint(w, "\n")
 }
