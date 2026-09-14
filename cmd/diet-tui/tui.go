@@ -561,7 +561,7 @@ func (m *model) handleFormKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case k.Type == tea.KeyEsc:
 		m.cancelForm()
 		return m, m.refreshList()
-	case k.Type == tea.KeyEnter && m.formIdx == len(m.formFields)-1:
+	case k.Type == tea.KeyEnter:
 		return m.submitForm()
 	case k.Type == tea.KeyTab:
 		m.formIdx = (m.formIdx + 1) % len(m.formFields)
@@ -639,11 +639,7 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 		if err != nil {
 			return errMsg{err}
 		}
-			_, err = m.db.LogMeal(m.ctx, db.LogMealParams{Date: todayStr(), Name: meal.Name})
-			if err != nil {
-				return errMsg{err}
-			}
-			m.status = fmt.Sprintf("created meal %s (%d cals)", name, cals)
+		m.status = fmt.Sprintf("created meal %s (%d cals)", name, cals)
 			m.cancelForm()
 			return reloadMsg{}
 		}
