@@ -495,6 +495,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg.err.Error()
 		return m, nil
+	case reloadMsg:
+		m.cancelForm()
+		return m, m.refreshList()
 	case tea.KeyMsg:
 		if m.formActive {
 			return m.handleFormKey(msg)
