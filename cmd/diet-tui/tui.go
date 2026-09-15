@@ -567,8 +567,8 @@ func (m *model) handleFormKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case k.Type == tea.KeyEsc:
 		m.cancelForm()
 		return m, m.refreshList()
-	case k.Type == tea.KeyEnter:
-		fmt.Fprintf(os.Stderr, "DEBUG: Enter pressed, submitting\n")
+	case k.Type == tea.KeyEnter, k.Type == tea.KeyCtrlM:
+		fmt.Fprintf(os.Stderr, "DEBUG: Enter/CtrlM pressed, submitting\n")
 		return m.submitForm()
 	case k.Type == tea.KeyTab:
 		m.formIdx = (m.formIdx + 1) % len(m.formFields)
