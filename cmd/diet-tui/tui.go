@@ -497,6 +497,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err.Error()
 		return m, nil
 	case reloadMsg:
+		fmt.Fprintf(os.Stderr, "DEBUG: reloadMsg received\n")
 		m.cancelForm()
 		return m, m.refreshList()
 	case tea.KeyMsg:
@@ -589,6 +590,7 @@ func intOr(s string, def int) (int, error) {
 }
 
 func (m *model) submitForm() (tea.Model, tea.Cmd) {
+	fmt.Fprintf(os.Stderr, "DEBUG: submitForm called, form=%d fields=%d\n", m.form, len(m.formFields))
 	f := m.formFields
 	switch m.form {
 	case formWeight:
