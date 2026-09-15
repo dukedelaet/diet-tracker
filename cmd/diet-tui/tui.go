@@ -636,16 +636,16 @@ func (m *model) submitForm() (tea.Model, tea.Cmd) {
 			} else if !errors.Is(err, sql.ErrNoRows) {
 				return errMsg{err}
 			}
-		meal, err := m.db.CreateMeal(m.ctx, db.CreateMealParams{Name: name, Protein: int64(p), Carbs: int64(c), Fat: int64(fat), Calories: int64(cals)})
-		if err != nil {
-			return errMsg{err}
-		}
-		// Also log the meal for today
-		_, err = m.db.LogMeal(m.ctx, db.LogMealParams{Date: todayStr(), Name: meal.Name})
-		if err != nil {
-			return errMsg{err}
-		}
-		m.status = fmt.Sprintf("created meal %s (%d cals)", name, cals)
+			meal, err := m.db.CreateMeal(m.ctx, db.CreateMealParams{Name: name, Protein: int64(p), Carbs: int64(c), Fat: int64(fat), Calories: int64(cals)})
+			if err != nil {
+				return errMsg{err}
+			}
+			// Also log the meal for today
+			_, err = m.db.LogMeal(m.ctx, db.LogMealParams{Date: todayStr(), Name: meal.Name})
+			if err != nil {
+				return errMsg{err}
+			}
+			m.status = fmt.Sprintf("created meal %s (%d cals)", name, cals)
 			m.cancelForm()
 			return reloadMsg{}
 		}
