@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -497,7 +496,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err.Error()
 		return m, nil
 	case reloadMsg:
-		fmt.Fprintf(os.Stderr, "DEBUG: reloadMsg received\n")
 		m.cancelForm()
 		return m, m.refreshList()
 	case tea.KeyMsg:
@@ -559,7 +557,6 @@ func (m *model) handleNavKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleFormKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	fmt.Fprintf(os.Stderr, "DEBUG formKey: type=%s str=%q idx=%d form=%d active=%v\n", k.Type, k.String(), m.formIdx, m.form, m.formActive)
 	switch {
 	case k.Type == tea.KeyCtrlC:
 		m.cancelForm()
@@ -568,7 +565,6 @@ func (m *model) handleFormKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cancelForm()
 		return m, m.refreshList()
 	case k.Type == tea.KeyEnter, k.Type == tea.KeyCtrlM:
-		fmt.Fprintf(os.Stderr, "DEBUG: Enter/CtrlM pressed, submitting\n")
 		return m.submitForm()
 	case k.Type == tea.KeyTab:
 		m.formIdx = (m.formIdx + 1) % len(m.formFields)
